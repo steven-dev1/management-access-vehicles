@@ -10,7 +10,7 @@ const ENTRY_KEYWORDS = ['entrada', 'entra', 'ingresa', 'ingreso', 'llega', 'lleg
 const EXIT_KEYWORDS = ['salida', 'sale', 'egresa', 'egreso', 'se va', 'retira', 'retiro'];
 const VEHICLE_KEYWORDS = ['vehículo', 'vehiculo', 'auto', 'carro', 'moto', 'placa'];
 
-function extractPlate(text: string): string | null {
+export function extractPlate(text: string): string | null {
   let cleaned = text.toUpperCase().replace(/[^A-Z0-9\s\-]/g, '');
 
   const stripWords = [...ENTRY_KEYWORDS, ...EXIT_KEYWORDS, ...VEHICLE_KEYWORDS,
@@ -55,12 +55,12 @@ function extractPlate(text: string): string | null {
   return null;
 }
 
-function formatPlate(letters: string, rest: string): string {
+export function formatPlate(letters: string, rest: string): string {
   const totalLen = letters.length + rest.length;
   return totalLen >= 7 ? `${letters}-${rest}` : `${letters}${rest}`;
 }
 
-function extractAction(text: string): 'entry' | 'exit' | null {
+export function extractAction(text: string): 'entry' | 'exit' | null {
   const lower = text.toLowerCase();
 
   for (const keyword of EXIT_KEYWORDS) {
