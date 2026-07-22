@@ -32,8 +32,8 @@ npm install
 The `.env` file is already configured with your Supabase credentials:
 
 ```
-EXPO_PUBLIC_SUPABASE_URL=https://iuzvquoklrwylrlibldt.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_G3NqBD36qdt8GpyH12OjiQ_g6LuBnVD
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
 ### 3. Setup Supabase Database
