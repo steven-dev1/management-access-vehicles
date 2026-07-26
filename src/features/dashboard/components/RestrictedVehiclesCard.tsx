@@ -51,14 +51,10 @@ export const RestrictedVehiclesCard: React.FC<RestrictedVehiclesCardProps> = ({ 
   };
 
   return (
-    <View style={styles.container}>
+    <View>
       <View style={styles.header}>
         <View style={styles.iconBox}>
           <Ionicons name="shield" size={18} color={COLORS.danger} />
-        </View>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Lista negra</Text>
-          <Text style={styles.subtitle}>{vehicles.length} vehículo{vehicles.length !== 1 ? 's' : ''} restringido{vehicles.length !== 1 ? 's' : ''}</Text>
         </View>
       </View>
 
@@ -124,13 +120,6 @@ export const RestrictedVehiclesCard: React.FC<RestrictedVehiclesCardProps> = ({ 
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

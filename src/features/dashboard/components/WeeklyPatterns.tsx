@@ -36,14 +36,7 @@ export const WeeklyPatterns: React.FC<{ logs: AccessLog[] }> = ({ logs }) => {
   const totalExits = DAY_INDICES.reduce((s, d) => s + weekData[d].exits, 0);
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconBox}>
-          <Ionicons name="calendar" size={16} color={COLORS.primary} />
-        </View>
-        <Text style={styles.title}>Patrón semanal</Text>
-      </View>
-
+    <View>
       <View style={styles.chart}>
         {DAY_INDICES.map((dayIndex) => {
           const data = weekData[dayIndex];
@@ -125,32 +118,6 @@ export const WeeklyPatterns: React.FC<{ logs: AccessLog[] }> = ({ logs }) => {
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  iconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
   chart: {
     gap: 6,
   },

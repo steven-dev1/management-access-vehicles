@@ -23,12 +23,7 @@ export const OccupancyCard: React.FC<{ occupancyStats: OccupancyStats[] }> = ({
       : 0;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Ocupación por torre</Text>
-        <Ionicons name="grid" size={20} color={COLORS.textSecondary} />
-      </View>
-
+    <View>
       <View style={styles.summaryRow}>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryValue}>{totalVehicles}</Text>
@@ -98,24 +93,6 @@ export const OccupancyCard: React.FC<{ occupancyStats: OccupancyStats[] }> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',

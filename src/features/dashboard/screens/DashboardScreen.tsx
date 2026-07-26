@@ -11,7 +11,6 @@ import { ViolationsCard } from '../components/ViolationsCard';
 import { OccupancyCard } from '../components/OccupancyCard';
 import { ParkingAlertsCard } from '../components/ParkingAlertsCard';
 import { RestrictedVehiclesCard } from '../components/RestrictedVehiclesCard';
-import { DateRangeFilter } from '../components/DateRangeFilter';
 import { ActivityHeatmap } from '../components/ActivityHeatmap';
 import { WeeklyPatterns } from '../components/WeeklyPatterns';
 import { RecentActivity } from '../components/RecentActivity';
@@ -19,9 +18,7 @@ import { useDashboard } from '../hooks/useDashboard';
 import { useLicense } from '../../../hooks/useLicense';
 import { useDashboardLayout, SectionId } from '../../../hooks/useDashboardLayout';
 import { LoadingState, ErrorState } from '../../../components/EmptyState';
-import { FadeInView } from '../../../components/FadeInView';
-import { Vehicle, AccessLog } from '../../../types';
-import { parseTimestamp } from '../../../utils';
+import { Vehicle } from '../../../types';
 
 export const DashboardScreen: React.FC = () => {
   const router = useRouter();
@@ -29,47 +26,16 @@ export const DashboardScreen: React.FC = () => {
   const { license, logout } = useLicense();
   const { loaded, toggleCollapse, togglePin, isCollapsed, isPinned, sortSections } = useDashboardLayout();
   const [refreshing, setRefreshing] = useState(false);
-  const [dateRange, setDateRange] = useState('all');
 
-  const filterLogsByRange = (logs: AccessLog[], range: string): AccessLog[] => {
-    if (range === 'all') return logs;
-    const now = new Date();
-    let cutoff: Date;
-    switch (range) {
-      case 'today':
-        cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        break;
-      case 'week':
-        cutoff = new Date(now);
-        cutoff.setDate(now.getDate() - 7);
-        break;
-      case 'month':
-        cutoff = new Date(now);
-        cutoff.setMonth(now.getMonth() - 1);
-        break;
-      case 'year':
-        cutoff = new Date(now);
-        cutoff.setFullYear(now.getFullYear() - 1);
-        break;
-      default:
-        return logs;
-    }
-    return logs.filter(log => {
-      const ts = parseTimestamp(log.timestamp);
-      return ts >= cutoff;
-    });
-  };
-
-  const filteredLogs = filterLogsByRange(accessLogs, dateRange);
-  const filteredRecentVehicles = (
-    filterLogsByRange(accessLogs.slice(0, 20), dateRange)
+  const recentVehiclesList = useMemo(() => (
+    accessLogs.slice(0, 20)
       .map(log => log.vehicle)
       .filter((v): v is Vehicle => !!v)
       .filter((vehicle, index, self) =>
         index === self.findIndex(v => v.id === vehicle.id)
       )
       .slice(0, 5)
-  );
+  ), [accessLogs]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -103,12 +69,12 @@ export const DashboardScreen: React.FC = () => {
       { id: 'violations', visible: violations.length > 0 },
       { id: 'restricted', visible: restrictedVehicles.length > 0 },
       { id: 'occupancy', visible: true },
-      { id: 'heatmap', visible: filteredLogs.length > 0 },
-      { id: 'weekly', visible: filteredLogs.length > 0 },
+      { id: 'heatmap', visible: accessLogs.length > 0 },
+      { id: 'weekly', visible: accessLogs.length > 0 },
       { id: 'recent', visible: true },
     ];
     return sections.filter(s => s.visible).map(s => s.id);
-  }, [parkingAlerts, violations, restrictedVehicles, filteredLogs]);
+  }, [parkingAlerts, violations, restrictedVehicles, accessLogs]);
 
   const sortedSections = useMemo(() => sortSections(availableSections), [availableSections, sortSections]);
 
@@ -144,19 +110,11 @@ export const DashboardScreen: React.FC = () => {
       case 'occupancy':
         return <OccupancyCard occupancyStats={occupancyStats} />;
       case 'heatmap':
-        return (
-          <FadeInView delay={100}>
-            <ActivityHeatmap logs={filteredLogs} />
-          </FadeInView>
-        );
+        return <ActivityHeatmap logs={accessLogs} />;
       case 'weekly':
-        return (
-          <FadeInView delay={200}>
-            <WeeklyPatterns logs={filteredLogs} />
-          </FadeInView>
-        );
+        return <WeeklyPatterns logs={accessLogs} />;
       case 'recent':
-        return <RecentActivity vehicles={filteredRecentVehicles.length > 0 ? filteredRecentVehicles : recentVehicles} onPress={handleVehiclePress} />;
+        return <RecentActivity vehicles={recentVehiclesList.length > 0 ? recentVehiclesList : recentVehicles} onPress={handleVehiclePress} />;
       default:
         return null;
     }
@@ -193,7 +151,6 @@ export const DashboardScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
         }
       >
-        <DateRangeFilter selected={dateRange} onSelect={setDateRange} />
         {sortedSections.map(sectionId => (
           <CollapsibleCard
             key={sectionId}

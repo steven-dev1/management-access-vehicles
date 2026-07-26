@@ -30,14 +30,7 @@ export const ActivityHeatmap: React.FC<{ logs: AccessLog[] }> = ({ logs }) => {
   }, [logs]);
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconBox}>
-          <Ionicons name="time" size={16} color={COLORS.primary} />
-        </View>
-        <Text style={styles.title}>Actividad por hora</Text>
-      </View>
-
+    <View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View>
           {/* Hour labels */}
@@ -92,32 +85,6 @@ export const ActivityHeatmap: React.FC<{ logs: AccessLog[] }> = ({ logs }) => {
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  iconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
   scrollContent: {
     paddingRight: 8,
   },

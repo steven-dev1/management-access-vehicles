@@ -18,11 +18,10 @@ export const ParkingAlertsCard: React.FC<{ alerts: ParkingAlert[] }> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name="time-outline" size={22} color={COLORS.warning} />
-          <Text style={styles.title}>Vehículos estacionados +30 días</Text>
         </View>
         <View style={styles.countBadge}>
           <Text style={styles.countText}>{alerts.length}</Text>
@@ -105,11 +104,6 @@ export const ParkingAlertsCard: React.FC<{ alerts: ParkingAlert[] }> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

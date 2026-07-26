@@ -39,11 +39,7 @@ export const ViolationsCard: React.FC<ViolationsCardProps> = ({ violations }) =>
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Ionicons name="warning" size={20} color={COLORS.warning} />
-        <Text style={styles.title}>Apartamentos que exceden límites</Text>
-      </View>
+    <View>
       <View style={styles.list}>
         {violations.map((violation) => (
           <View key={violation.apartment_code} style={styles.violationCard}>
@@ -81,24 +77,6 @@ export const ViolationsCard: React.FC<ViolationsCardProps> = ({ violations }) =>
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
   footer: {
     marginTop: 12,
     alignItems: 'flex-end',

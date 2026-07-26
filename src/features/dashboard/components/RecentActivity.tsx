@@ -14,8 +14,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ vehicles, onPres
   if (!vehicles.length) return null;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Actividad Reciente</Text>
+    <View>
       <View style={styles.list}>
         {vehicles.slice(0, 5).map((vehicle) => (
           <TouchableOpacity
@@ -44,19 +43,6 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ vehicles, onPres
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 16,
-  },
   list: {
     gap: 12,
   },
