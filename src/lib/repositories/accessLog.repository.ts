@@ -96,7 +96,15 @@ export const accessLogRepository = {
     const { data, error } = await vehicleQuery;
 
     if (error) throw error;
-    return data || [];
+    if (data && data.length > 0) return data;
+
+    let fallbackQuery = addLicenseFilter(
+      supabase.from('vehicles').select('*')
+    );
+    const { data: all, error: fbErr } = await fallbackQuery;
+    if (fbErr) throw fbErr;
+
+    return all?.filter((v: any) => v.license_plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase().includes(cleanQuery)).slice(0, 10) || [];
   },
 
   async getLogsByApartment(tower: number, apartmentCode: string, limit: number = 50): Promise<AccessLog[]> {
