@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput } 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../../constants';
 import { licenseRepository } from '../../../lib/repositories/license.repository';
 import { License, LicenseDevice } from '../../../types';
@@ -94,11 +95,9 @@ export default function LicensesScreen() {
     ]);
   };
 
-  const handleCopyLicense = (licenseKey: string) => {
-    import('expo-clipboard').then(({ setStringAsync }) => {
-      setStringAsync(licenseKey);
-      Alert.alert('Copiado', licenseKey);
-    });
+  const handleCopyLicense = async (licenseKey: string) => {
+    await Clipboard.setStringAsync(licenseKey);
+    Alert.alert('Copiado', licenseKey);
   };
 
   const handleOpenExtendModal = (license: License) => {
