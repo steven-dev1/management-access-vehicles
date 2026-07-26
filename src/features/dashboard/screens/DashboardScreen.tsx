@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { COLORS } from '../../../constants';
+import { CollapsibleCard } from '../components/CollapsibleCard';
 import { StatsCard } from '../components/StatsCard';
 import { ViolationsCard } from '../components/ViolationsCard';
 import { OccupancyCard } from '../components/OccupancyCard';
@@ -16,6 +17,7 @@ import { WeeklyPatterns } from '../components/WeeklyPatterns';
 import { RecentActivity } from '../components/RecentActivity';
 import { useDashboard } from '../hooks/useDashboard';
 import { useLicense } from '../../../hooks/useLicense';
+import { useDashboardLayout, SectionId } from '../../../hooks/useDashboardLayout';
 import { LoadingState, ErrorState } from '../../../components/EmptyState';
 import { FadeInView } from '../../../components/FadeInView';
 import { Vehicle, AccessLog } from '../../../types';
@@ -25,6 +27,7 @@ export const DashboardScreen: React.FC = () => {
   const router = useRouter();
   const { stats, violations, recentVehicles, occupancyStats, parkingAlerts, restrictedVehicles, accessLogs, loading, error, refresh } = useDashboard();
   const { license, logout } = useLicense();
+  const { loaded, toggleCollapse, togglePin, isCollapsed, isPinned, sortSections } = useDashboardLayout();
   const [refreshing, setRefreshing] = useState(false);
   const [dateRange, setDateRange] = useState('all');
 
@@ -93,6 +96,33 @@ export const DashboardScreen: React.FC = () => {
     );
   };
 
+  const availableSections = useMemo(() => {
+    const sections: { id: SectionId; visible: boolean }[] = [
+      { id: 'stats', visible: true },
+      { id: 'parking-alerts', visible: parkingAlerts.length > 0 },
+      { id: 'violations', visible: violations.length > 0 },
+      { id: 'restricted', visible: restrictedVehicles.length > 0 },
+      { id: 'occupancy', visible: true },
+      { id: 'heatmap', visible: filteredLogs.length > 0 },
+      { id: 'weekly', visible: filteredLogs.length > 0 },
+      { id: 'recent', visible: true },
+    ];
+    return sections.filter(s => s.visible).map(s => s.id);
+  }, [parkingAlerts, violations, restrictedVehicles, filteredLogs]);
+
+  const sortedSections = useMemo(() => sortSections(availableSections), [availableSections, sortSections]);
+
+  const SECTION_LABELS: Record<SectionId, string> = {
+    stats: 'Estadísticas',
+    'parking-alerts': 'Alertas de Parqueo',
+    violations: 'Infracciones',
+    restricted: 'Vehículos Restringidos',
+    occupancy: 'Ocupación',
+    heatmap: 'Mapa de Actividad',
+    weekly: 'Patrones Semanales',
+    recent: 'Actividad Reciente',
+  };
+
   if (loading && !stats) {
     return <LoadingState message="Cargando dashboard..." />;
   }
@@ -100,6 +130,37 @@ export const DashboardScreen: React.FC = () => {
   if (error && !stats) {
     return <ErrorState message={error} onRetry={refresh} />;
   }
+
+  const renderSection = (sectionId: SectionId) => {
+    switch (sectionId) {
+      case 'stats':
+        return <StatsCard stats={stats} />;
+      case 'parking-alerts':
+        return <ParkingAlertsCard alerts={parkingAlerts} />;
+      case 'violations':
+        return <ViolationsCard violations={violations} />;
+      case 'restricted':
+        return <RestrictedVehiclesCard vehicles={restrictedVehicles} onPress={handleVehiclePress} />;
+      case 'occupancy':
+        return <OccupancyCard occupancyStats={occupancyStats} />;
+      case 'heatmap':
+        return (
+          <FadeInView delay={100}>
+            <ActivityHeatmap logs={filteredLogs} />
+          </FadeInView>
+        );
+      case 'weekly':
+        return (
+          <FadeInView delay={200}>
+            <WeeklyPatterns logs={filteredLogs} />
+          </FadeInView>
+        );
+      case 'recent':
+        return <RecentActivity vehicles={filteredRecentVehicles.length > 0 ? filteredRecentVehicles : recentVehicles} onPress={handleVehiclePress} />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -133,22 +194,17 @@ export const DashboardScreen: React.FC = () => {
         }
       >
         <DateRangeFilter selected={dateRange} onSelect={setDateRange} />
-        <StatsCard stats={stats} />
-        {parkingAlerts.length > 0 && <ParkingAlertsCard alerts={parkingAlerts} />}
-        {violations.length > 0 && <ViolationsCard violations={violations} />}
-        {restrictedVehicles.length > 0 && <RestrictedVehiclesCard vehicles={restrictedVehicles} onPress={handleVehiclePress} />}
-        <OccupancyCard occupancyStats={occupancyStats} />
-        {filteredLogs.length > 0 && (
-          <>
-            <FadeInView delay={100}>
-              <ActivityHeatmap logs={filteredLogs} />
-            </FadeInView>
-            <FadeInView delay={200}>
-              <WeeklyPatterns logs={filteredLogs} />
-            </FadeInView>
-          </>
-        )}
-        <RecentActivity vehicles={filteredRecentVehicles.length > 0 ? filteredRecentVehicles : recentVehicles} onPress={handleVehiclePress} />
+        {sortedSections.map(sectionId => (
+          <CollapsibleCard
+            key={sectionId}
+            collapsed={isCollapsed(sectionId)}
+            pinned={isPinned(sectionId)}
+            onToggleCollapse={() => toggleCollapse(sectionId)}
+            onTogglePin={() => togglePin(sectionId)}
+          >
+            {renderSection(sectionId)}
+          </CollapsibleCard>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -222,6 +278,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   content: {
+    padding: 12,
     paddingBottom: 32,
   },
 });
