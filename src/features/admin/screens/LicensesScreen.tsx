@@ -95,8 +95,8 @@ export default function LicensesScreen() {
     ]);
   };
 
-  const handleCopyLicense = async (licenseKey: string) => {
-    await Clipboard.setStringAsync(licenseKey);
+  const handleCopyLicense = (licenseKey: string) => {
+    Clipboard.setString(licenseKey);
     Alert.alert('Copiado', licenseKey);
   };
 
