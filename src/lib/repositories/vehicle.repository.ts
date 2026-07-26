@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { Vehicle, VehicleFormData, DashboardStats, TowerStats, ApartmentViolation, FilterOptions, SortOption, OccupancyStats, ParkingAlert } from '../../types';
+import { getCurrentLicenseId } from './license-context';
 import * as XLSX from 'xlsx';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -7,11 +8,17 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 const PAGE_SIZE = 20;
 
+function addLicenseFilter(query: any) {
+  const lid = getCurrentLicenseId();
+  if (lid) return query.eq('license_id', lid);
+  return query;
+}
+
 export const vehicleRepository = {
   async getAll(filters?: FilterOptions, sort?: SortOption, page: number = 0): Promise<{ data: Vehicle[]; hasMore: boolean }> {
-    let query = supabase
-      .from('vehicles')
-      .select('*');
+    let query = addLicenseFilter(
+      supabase.from('vehicles').select('*')
+    );
 
     if (filters?.search) {
       query = query.ilike('license_plate', `%${filters.search}%`);
@@ -66,9 +73,9 @@ export const vehicleRepository = {
   },
 
   async getAllCount(filters?: FilterOptions): Promise<number> {
-    let query = supabase
-      .from('vehicles')
-      .select('id', { count: 'exact', head: true });
+    let query = addLicenseFilter(
+      supabase.from('vehicles').select('id', { count: 'exact', head: true })
+    );
 
     if (filters?.search) {
       query = query.ilike('license_plate', `%${filters.search}%`);
@@ -100,14 +107,15 @@ export const vehicleRepository = {
   },
 
   async create(vehicle: VehicleFormData): Promise<Vehicle> {
+    const lid = getCurrentLicenseId();
     const apartment_code = `${vehicle.floor * 100 +vehicle.apartment}`;
+
+    const insertData: any = { ...vehicle, apartment_code };
+    if (lid) insertData.license_id = lid;
 
     const { data, error } = await supabase
       .from('vehicles')
-      .insert({
-        ...vehicle,
-        apartment_code,
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -142,24 +150,24 @@ export const vehicleRepository = {
   },
 
   async getStats(): Promise<DashboardStats> {
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('vehicle_type');
+    const { data, error } = await addLicenseFilter(
+      supabase.from('vehicles').select('vehicle_type')
+    );
 
     if (error) throw error;
 
     const vehicles = data || [];
     return {
       total_vehicles: vehicles.length,
-      total_cars: vehicles.filter(v => v.vehicle_type === 'car').length,
-      total_motorcycles: vehicles.filter(v => v.vehicle_type === 'motorcycle').length,
+      total_cars: vehicles.filter((v: any) => v.vehicle_type === 'car').length,
+      total_motorcycles: vehicles.filter((v: any) => v.vehicle_type === 'motorcycle').length,
     };
   },
 
   async getTowerStats(): Promise<TowerStats[]> {
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('tower, vehicle_type');
+    const { data, error } = await addLicenseFilter(
+      supabase.from('vehicles').select('tower, vehicle_type')
+    );
 
     if (error) throw error;
 
@@ -185,9 +193,9 @@ export const vehicleRepository = {
   },
 
   async getApartmentViolations(): Promise<ApartmentViolation[]> {
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('apartment_code, tower, floor, apartment, vehicle_type');
+    const { data, error } = await addLicenseFilter(
+      supabase.from('vehicles').select('apartment_code, tower, floor, apartment, vehicle_type')
+    );
 
     if (error) throw error;
 
@@ -219,10 +227,9 @@ export const vehicleRepository = {
   },
 
   async checkDuplicatePlate(plate: string, excludeId?: string): Promise<boolean> {
-    let query = supabase
-      .from('vehicles')
-      .select('id')
-      .eq('license_plate', plate.toUpperCase());
+    let query = addLicenseFilter(
+      supabase.from('vehicles').select('id').eq('license_plate', plate.toUpperCase())
+    );
 
     if (excludeId) {
       query = query.neq('id', excludeId);
@@ -329,19 +336,17 @@ export const vehicleRepository = {
   },
 
   async getRestrictedVehicles(): Promise<Vehicle[]> {
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .eq('is_restricted', true)
-      .order('created_at', { ascending: false });
+    const { data, error } = await addLicenseFilter(
+      supabase.from('vehicles').select('*').eq('is_restricted', true).order('created_at', { ascending: false })
+    );
     if (error) throw error;
     return data || [];
   },
 
   async getOccupancyByTower(): Promise<OccupancyStats[]> {
-    const { data: vehicles, error } = await supabase
-      .from('vehicles')
-      .select('tower, floor, apartment, vehicle_type, apartment_code');
+    const { data: vehicles, error } = await addLicenseFilter(
+      supabase.from('vehicles').select('tower, floor, apartment, vehicle_type, apartment_code')
+    );
     if (error) throw error;
 
     const totalApartments = 20; // 5 floors * 4 apartments
@@ -372,21 +377,22 @@ export const vehicleRepository = {
   },
 
   async getParkingAlerts(daysThreshold: number = 30): Promise<ParkingAlert[]> {
-    const { data: vehicles, error: vErr } = await supabase
-      .from('vehicles')
-      .select('id, license_plate, owner_name, tower, apartment_code, vehicle_type');
+    const { data: vehicles, error: vErr } = await addLicenseFilter(
+      supabase.from('vehicles').select('id, license_plate, owner_name, tower, apartment_code, vehicle_type')
+    );
     if (vErr) throw vErr;
 
     const alerts: ParkingAlert[] = [];
     const now = new Date();
 
     for (const vehicle of vehicles || []) {
-      const { data: logs } = await supabase
-        .from('access_logs')
-        .select('access_type, timestamp')
-        .eq('vehicle_id', vehicle.id)
-        .order('timestamp', { ascending: false })
-        .limit(10);
+      const { data: logs } = await addLicenseFilter(
+        supabase.from('access_logs')
+          .select('access_type, timestamp')
+          .eq('vehicle_id', vehicle.id)
+          .order('timestamp', { ascending: false })
+          .limit(10)
+      );
 
       if (!logs || logs.length === 0) continue;
 

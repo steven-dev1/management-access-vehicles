@@ -2,6 +2,7 @@ export type VehicleType = 'car' | 'motorcycle';
 
 export interface Vehicle {
   id: string;
+  license_id: string;
   license_plate: string;
   vehicle_type: VehicleType;
   tower: number;
@@ -63,6 +64,7 @@ export type AccessType = 'entry' | 'exit';
 
 export interface AccessLog {
   id: string;
+  license_id: string;
   vehicle_id: string;
   access_type: AccessType;
   plate_scanned: string | null;
@@ -79,6 +81,7 @@ export type VisitorStatus = 'expected' | 'active' | 'completed' | 'expired';
 
 export interface Visitor {
   id: string;
+  license_id: string;
   visitor_plate: string;
   visitor_name: string;
   host_apartment_code: string;

@@ -1,13 +1,19 @@
 import { supabase } from '../supabase';
 import { Visitor, VisitorFormData } from '../../types';
+import { getCurrentLicenseId } from './license-context';
 import { parseTimestamp } from '../../utils';
+
+function addLicenseFilter(query: any) {
+  const lid = getCurrentLicenseId();
+  if (lid) return query.eq('license_id', lid);
+  return query;
+}
 
 export const visitorRepository = {
   async getAll(limit?: number): Promise<Visitor[]> {
-    let query = supabase
-      .from('visitors')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let query = addLicenseFilter(
+      supabase.from('visitors').select('*').order('created_at', { ascending: false })
+    );
 
     if (limit) {
       query = query.limit(limit);
@@ -19,42 +25,41 @@ export const visitorRepository = {
   },
 
   async getActive(): Promise<Visitor[]> {
-    const { data, error } = await supabase
-      .from('visitors')
-      .select('*')
-      .in('status', ['active', 'expected'])
-      .order('created_at', { ascending: false });
+    const { data, error } = await addLicenseFilter(
+      supabase.from('visitors').select('*').in('status', ['active', 'expected']).order('created_at', { ascending: false })
+    );
 
     if (error) throw error;
     return data as Visitor[];
   },
 
   async getByHost(tower: number, apartmentCode: string): Promise<Visitor[]> {
-    const { data, error } = await supabase
-      .from('visitors')
-      .select('*')
-      .eq('host_tower', tower)
-      .eq('host_apartment_code', apartmentCode)
-      .order('created_at', { ascending: false });
+    const { data, error } = await addLicenseFilter(
+      supabase.from('visitors').select('*').eq('host_tower', tower).eq('host_apartment_code', apartmentCode).order('created_at', { ascending: false })
+    );
 
     if (error) throw error;
     return data as Visitor[];
   },
 
   async create(data: VisitorFormData): Promise<Visitor> {
+    const lid = getCurrentLicenseId();
+    const insertData: any = {
+      visitor_plate: data.visitor_plate,
+      visitor_name: data.visitor_name,
+      host_tower: data.host_tower,
+      host_apartment_code: data.host_apartment_code,
+      host_owner_name: data.host_owner_name,
+      purpose: data.purpose,
+      expected_duration_hours: data.expected_duration_hours,
+      status: 'active',
+      entry_time: new Date().toISOString(),
+    };
+    if (lid) insertData.license_id = lid;
+
     const { data: newVisitor, error } = await supabase
       .from('visitors')
-      .insert({
-        visitor_plate: data.visitor_plate,
-        visitor_name: data.visitor_name,
-        host_tower: data.host_tower,
-        host_apartment_code: data.host_apartment_code,
-        host_owner_name: data.host_owner_name,
-        purpose: data.purpose,
-        expected_duration_hours: data.expected_duration_hours,
-        status: 'active',
-        entry_time: new Date().toISOString(),
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -114,21 +119,18 @@ export const visitorRepository = {
   },
 
   async search(query: string): Promise<Visitor[]> {
-    const { data, error } = await supabase
-      .from('visitors')
-      .select('*')
-      .or(`visitor_plate.ilike.%${query}%,visitor_name.ilike.%${query}%`)
-      .order('created_at', { ascending: false });
+    const { data, error } = await addLicenseFilter(
+      supabase.from('visitors').select('*').or(`visitor_plate.ilike.%${query}%,visitor_name.ilike.%${query}%`).order('created_at', { ascending: false })
+    );
 
     if (error) throw error;
     return data as Visitor[];
   },
 
   async getExpiredVisitors(): Promise<Visitor[]> {
-    const { data, error } = await supabase
-      .from('visitors')
-      .select('*')
-      .eq('status', 'active');
+    const { data, error } = await addLicenseFilter(
+      supabase.from('visitors').select('*').eq('status', 'active')
+    );
 
     if (error) throw error;
 

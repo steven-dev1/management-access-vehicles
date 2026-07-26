@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { licenseRepository } from '../lib/repositories/license.repository';
+import { setCurrentLicenseId } from '../lib/repositories/license-context';
 import { License, LicenseValidation } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -69,6 +70,7 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
           license: validation.license,
           validation,
         }));
+        setCurrentLicenseId(validation.license.id);
       } else {
         setState(prev => ({
           ...prev,
@@ -121,6 +123,7 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
         validation: { ...validation, deviceRegistered: true },
         error: null,
       });
+      setCurrentLicenseId(validation.license.id);
 
       return { success: true };
     } catch {
@@ -130,6 +133,7 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await AsyncStorage.removeItem(LICENSE_KEY_STORAGE);
+    setCurrentLicenseId('');
     try { await supabase.auth.signOut(); } catch {
       try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
     }

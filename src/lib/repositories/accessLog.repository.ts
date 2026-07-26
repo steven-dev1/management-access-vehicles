@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { AccessLog, AccessType, Vehicle } from '../../types';
+import { getCurrentLicenseId } from './license-context';
 import * as XLSX from 'xlsx';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -13,15 +14,25 @@ function formatPlate(plate: string): string {
   return clean;
 }
 
+function addLicenseFilter(query: any) {
+  const lid = getCurrentLicenseId();
+  if (lid) return query.eq('license_id', lid);
+  return query;
+}
+
 export const accessLogRepository = {
   async logAccess(vehicleId: string, accessType: AccessType, plateScanned?: string): Promise<AccessLog> {
+    const lid = getCurrentLicenseId();
+    const insertData: any = {
+      vehicle_id: vehicleId,
+      access_type: accessType,
+      plate_scanned: plateScanned || null,
+    };
+    if (lid) insertData.license_id = lid;
+
     const { data, error } = await supabase
       .from('access_logs')
-      .insert({
-        vehicle_id: vehicleId,
-        access_type: accessType,
-        plate_scanned: plateScanned || null,
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -30,22 +41,18 @@ export const accessLogRepository = {
   },
 
   async getRecentLogs(limit: number = 20): Promise<AccessLog[]> {
-    const { data, error } = await supabase
-      .from('access_logs')
-      .select('*, vehicle:vehicles(*)')
-      .order('timestamp', { ascending: false })
-      .limit(limit);
+    const { data, error } = await addLicenseFilter(
+      supabase.from('access_logs').select('*, vehicle:vehicles(*)').order('timestamp', { ascending: false }).limit(limit)
+    );
 
     if (error) throw error;
     return data || [];
   },
 
   async getLogsByVehicle(vehicleId: string): Promise<AccessLog[]> {
-    const { data, error } = await supabase
-      .from('access_logs')
-      .select('*')
-      .eq('vehicle_id', vehicleId)
-      .order('timestamp', { ascending: false });
+    const { data, error } = await addLicenseFilter(
+      supabase.from('access_logs').select('*').eq('vehicle_id', vehicleId).order('timestamp', { ascending: false })
+    );
 
     if (error) throw error;
     return data || [];
@@ -55,11 +62,9 @@ export const accessLogRepository = {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const { data, error } = await supabase
-      .from('access_logs')
-      .select('*, vehicle:vehicles(*)')
-      .gte('timestamp', today.toISOString())
-      .order('timestamp', { ascending: false });
+    const { data, error } = await addLicenseFilter(
+      supabase.from('access_logs').select('*, vehicle:vehicles(*)').gte('timestamp', today.toISOString()).order('timestamp', { ascending: false })
+    );
 
     if (error) throw error;
     return data || [];
@@ -68,11 +73,11 @@ export const accessLogRepository = {
   async getVehicleByPlate(plate: string): Promise<Vehicle | null> {
     const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .or(`license_plate.eq.${plate.toUpperCase()},license_plate.eq.${cleanPlate},license_plate.eq.${formatPlate(cleanPlate)}`)
-      .single();
+    let query = addLicenseFilter(
+      supabase.from('vehicles').select('*')
+    );
+    query = query.or(`license_plate.eq.${plate.toUpperCase()},license_plate.eq.${cleanPlate},license_plate.eq.${formatPlate(cleanPlate)}`);
+    const { data, error } = await query.single();
 
     if (error) return null;
     return data;
@@ -81,47 +86,52 @@ export const accessLogRepository = {
   async searchVehicles(query: string): Promise<Vehicle[]> {
     const cleanQuery = query.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*')
+    let vehicleQuery = addLicenseFilter(
+      supabase.from('vehicles').select('*')
+    );
+    vehicleQuery = vehicleQuery
       .or(`license_plate.ilike.%${query}%,license_plate.ilike.%${cleanQuery}%`)
       .order('license_plate')
       .limit(10);
+    const { data, error } = await vehicleQuery;
 
     if (error) throw error;
     return data || [];
   },
 
   async getLogsByApartment(tower: number, apartmentCode: string, limit: number = 50): Promise<AccessLog[]> {
-    const { data: vehicles, error: vError } = await supabase
-      .from('vehicles')
-      .select('id')
-      .eq('tower', tower)
-      .eq('apartment_code', apartmentCode);
+    let vehicleQuery = addLicenseFilter(
+      supabase.from('vehicles').select('id')
+    );
+    vehicleQuery = vehicleQuery.eq('tower', tower).eq('apartment_code', apartmentCode);
+    const { data: vehicles, error: vError } = await vehicleQuery;
 
     if (vError) throw vError;
     if (!vehicles || vehicles.length === 0) return [];
 
-    const vehicleIds = vehicles.map(v => v.id);
+    const vehicleIds = vehicles.map((v: any) => v.id);
 
-    const { data, error } = await supabase
-      .from('access_logs')
-      .select('*, vehicle:vehicles(*)')
-      .in('vehicle_id', vehicleIds)
-      .order('timestamp', { ascending: false })
-      .limit(limit);
+    const { data, error } = await addLicenseFilter(
+      supabase.from('access_logs')
+        .select('*, vehicle:vehicles(*)')
+        .in('vehicle_id', vehicleIds)
+        .order('timestamp', { ascending: false })
+        .limit(limit)
+    );
 
     if (error) throw error;
     return data || [];
   },
 
   async getAccessStatsByDateRange(startDate: string, endDate: string): Promise<{ date: string; entries: number; exits: number }[]> {
-    const { data, error } = await supabase
-      .from('access_logs')
-      .select('access_type, timestamp')
+    let query = addLicenseFilter(
+      supabase.from('access_logs').select('access_type, timestamp')
+    );
+    query = query
       .gte('timestamp', startDate)
       .lte('timestamp', endDate)
       .order('timestamp');
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -141,10 +151,11 @@ export const accessLogRepository = {
   },
 
   async exportLogsToCSV(startDate?: string, endDate?: string): Promise<string> {
-    let query = supabase
-      .from('access_logs')
-      .select('*, vehicle:vehicles(license_plate, vehicle_type, tower, apartment_code, owner_name)')
-      .order('timestamp', { ascending: false });
+    let query = addLicenseFilter(
+      supabase.from('access_logs')
+        .select('*, vehicle:vehicles(license_plate, vehicle_type, tower, apartment_code, owner_name)')
+        .order('timestamp', { ascending: false })
+    );
 
     if (startDate) query = query.gte('timestamp', startDate);
     if (endDate) query = query.lte('timestamp', endDate);
@@ -153,7 +164,7 @@ export const accessLogRepository = {
     if (error) throw error;
 
     const header = 'Fecha,Hora,Placa,Tipo,Torre,Apartamento,Propietario,Tipo Accion\n';
-    const rows = (data || []).map(log => {
+    const rows = (data || []).map((log: any) => {
       const date = parseTimestamp(log.timestamp);
       const dateStr = date.toLocaleDateString('es-ES');
       const timeStr = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -165,10 +176,11 @@ export const accessLogRepository = {
   },
 
   async exportLogsToExcel(startDate?: string, endDate?: string): Promise<void> {
-    let query = supabase
-      .from('access_logs')
-      .select('*, vehicle:vehicles(license_plate, vehicle_type, tower, apartment_code, owner_name)')
-      .order('timestamp', { ascending: false });
+    let query = addLicenseFilter(
+      supabase.from('access_logs')
+        .select('*, vehicle:vehicles(license_plate, vehicle_type, tower, apartment_code, owner_name)')
+        .order('timestamp', { ascending: false })
+    );
 
     if (startDate) query = query.gte('timestamp', startDate);
     if (endDate) query = query.lte('timestamp', endDate);
@@ -176,7 +188,7 @@ export const accessLogRepository = {
     const { data, error } = await query;
     if (error) throw error;
 
-    const rows = (data || []).map(log => {
+    const rows = (data || []).map((log: any) => {
       const date = parseTimestamp(log.timestamp);
       const v = log.vehicle;
       return {
@@ -212,10 +224,11 @@ export const accessLogRepository = {
   },
 
   async exportLogsToPDF(startDate?: string, endDate?: string): Promise<void> {
-    let query = supabase
-      .from('access_logs')
-      .select('*, vehicle:vehicles(license_plate, vehicle_type, tower, apartment_code, owner_name)')
-      .order('timestamp', { ascending: false });
+    let query = addLicenseFilter(
+      supabase.from('access_logs')
+        .select('*, vehicle:vehicles(license_plate, vehicle_type, tower, apartment_code, owner_name)')
+        .order('timestamp', { ascending: false })
+    );
 
     if (startDate) query = query.gte('timestamp', startDate);
     if (endDate) query = query.lte('timestamp', endDate);
@@ -223,7 +236,7 @@ export const accessLogRepository = {
     const { data, error } = await query;
     if (error) throw error;
 
-    const rows = (data || []).map(log => {
+    const rows = (data || []).map((log: any) => {
       const date = parseTimestamp(log.timestamp);
       const v = log.vehicle;
       const isEntry = log.access_type === 'entry';
