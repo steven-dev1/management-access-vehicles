@@ -145,6 +145,19 @@ class LicenseRepository {
     return !error;
   }
 
+  async extendLicense(id: string, trialDays: number): Promise<License> {
+    const newTrialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('licenses')
+      .update({ trial_ends_at: newTrialEndsAt, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
   async getAllDevices(): Promise<(LicenseDevice & { license_key?: string; complex_name?: string })[]> {
     const { data, error } = await supabase
       .from('license_devices')

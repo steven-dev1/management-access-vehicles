@@ -1,42 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { COLORS } from '../../../constants';
 import { licenseRepository } from '../../../lib/repositories/license.repository';
 import { LicenseDevice } from '../../../types';
 
 export default function DevicesScreen() {
-  const [devices, setDevices] = useState<(LicenseDevice & { license_key?: string; complex_name?: string })[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => { loadDevices(); }, []);
+  const { data: devices = [], isLoading } = useQuery({
+    queryKey: ['admin-devices'],
+    queryFn: () => licenseRepository.getAllDevices(),
+  });
 
-  const loadDevices = async () => {
-    try {
-      const dev = await licenseRepository.getAllDevices();
-      setDevices(dev);
-    } catch {
-      Alert.alert('Error', 'No se pudieron cargar los dispositivos');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const removeMutation = useMutation({
+    mutationFn: (deviceId: string) => licenseRepository.removeDevice(deviceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-devices'] });
+    },
+    onError: () => Alert.alert('Error', 'No se pudo desactivar'),
+  });
 
-  const handleRemoveDevice = async (device: LicenseDevice & { complex_name?: string }) => {
+  const handleRemoveDevice = (device: LicenseDevice & { complex_name?: string }) => {
     Alert.alert('Desactivar', `¿Desactivar "${device.device_name}" de ${device.complex_name}?`, [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Desactivar', style: 'destructive',
-        onPress: async () => {
-          try {
-            await licenseRepository.removeDevice(device.id);
-            setDevices(prev => prev.filter(d => d.id !== device.id));
-          } catch {
-            Alert.alert('Error', 'No se pudo desactivar');
-          }
-        },
-      },
+      { text: 'Desactivar', style: 'destructive', onPress: () => removeMutation.mutate(device.id) },
     ]);
   };
 
@@ -86,7 +76,7 @@ export default function DevicesScreen() {
         keyExtractor={i => i.id}
         renderItem={renderDevice}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<Text style={styles.emptyText}>{loading ? 'Cargando...' : 'Sin dispositivos registrados'}</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>{isLoading ? 'Cargando...' : 'Sin dispositivos registrados'}</Text>}
       />
     </SafeAreaView>
   );

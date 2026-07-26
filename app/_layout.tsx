@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet } from 'rea
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { COLORS } from '../src/constants';
 import Providers from './providers';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
@@ -14,6 +15,17 @@ import { supabase } from '../src/lib/supabase';
 import PanelScreen from '../src/features/admin/screens/PanelScreen';
 import LicensesScreen from '../src/features/admin/screens/LicensesScreen';
 import DevicesScreen from '../src/features/admin/screens/DevicesScreen';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 10_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 async function clearAdminSession() {
   try {
@@ -154,11 +166,13 @@ function AppContent() {
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <Providers>
-        <LicenseProvider>
-          <LicenseGate />
-        </LicenseProvider>
-      </Providers>
+      <QueryClientProvider client={queryClient}>
+        <Providers>
+          <LicenseProvider>
+            <LicenseGate />
+          </LicenseProvider>
+        </Providers>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

@@ -1,80 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { COLORS } from '../../../constants';
 import { licenseRepository } from '../../../lib/repositories/license.repository';
 import { License, LicenseDevice } from '../../../types';
 
 export default function LicensesScreen() {
-  const [licenses, setLicenses] = useState<License[]>([]);
-  const [devices, setDevices] = useState<LicenseDevice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newComplexName, setNewComplexName] = useState('');
   const [newMaxDevices, setNewMaxDevices] = useState('2');
   const [newTrialDays, setNewTrialDays] = useState('30');
+  const [extendModalVisible, setExtendModalVisible] = useState(false);
+  const [extendLicenseId, setExtendLicenseId] = useState<string | null>(null);
+  const [extendLicenseName, setExtendLicenseName] = useState('');
+  const [extendDays, setExtendDays] = useState('30');
 
-  useEffect(() => { loadData(); }, []);
+  const { data: licenses = [], isLoading } = useQuery({
+    queryKey: ['admin-licenses'],
+    queryFn: () => licenseRepository.getAllLicenses(),
+  });
 
-  const loadData = async () => {
-    try {
-      const [lic, dev] = await Promise.all([
-        licenseRepository.getAllLicenses(),
-        licenseRepository.getAllDevices(),
-      ]);
-      setLicenses(lic);
-      setDevices(dev);
-    } catch {
-      Alert.alert('Error', 'No se pudieron cargar los datos');
-    } finally {
-      setLoading(false);
-    }
+  const { data: devices = [] } = useQuery({
+    queryKey: ['admin-devices'],
+    queryFn: () => licenseRepository.getAllDevices(),
+  });
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-licenses'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-devices'] });
   };
 
-  const handleCreateLicense = async () => {
-    if (!newComplexName.trim()) {
-      Alert.alert('Error', 'Ingresa el nombre del conjunto');
-      return;
-    }
-    try {
-      const maxD = parseInt(newMaxDevices) || 2;
-      const trialD = parseInt(newTrialDays) || 30;
-      const newLicense = await licenseRepository.createLicense(newComplexName.trim(), maxD, trialD);
-      setLicenses(prev => [newLicense, ...prev]);
+  const createMutation = useMutation({
+    mutationFn: ({ name, maxDevices, trialDays }: { name: string; maxDevices: number; trialDays: number }) =>
+      licenseRepository.createLicense(name, maxDevices, trialDays),
+    onSuccess: (newLicense) => {
+      invalidateAll();
       setShowCreateModal(false);
       setNewComplexName('');
       setNewMaxDevices('2');
       setNewTrialDays('30');
       Alert.alert('Éxito', `Licencia creada: ${newLicense.license_key}`);
-    } catch {
-      Alert.alert('Error', 'No se pudo crear la licencia');
+    },
+    onError: () => Alert.alert('Error', 'No se pudo crear la licencia'),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+      licenseRepository.updateLicense(id, { active }),
+    onSuccess: () => invalidateAll(),
+    onError: () => Alert.alert('Error', 'No se pudo actualizar'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => licenseRepository.deleteLicense(id),
+    onSuccess: () => invalidateAll(),
+    onError: () => Alert.alert('Error', 'No se pudo eliminar'),
+  });
+
+  const extendMutation = useMutation({
+    mutationFn: ({ id, days }: { id: string; days: number }) =>
+      licenseRepository.extendLicense(id, days),
+    onSuccess: () => {
+      invalidateAll();
+      setExtendModalVisible(false);
+      Alert.alert('Éxito', `Licencia extendida por ${parseInt(extendDays) || 30} días`);
+    },
+    onError: () => Alert.alert('Error', 'No se pudo extender la licencia'),
+  });
+
+  const handleCreateLicense = () => {
+    if (!newComplexName.trim()) {
+      Alert.alert('Error', 'Ingresa el nombre del conjunto');
+      return;
     }
+    createMutation.mutate({
+      name: newComplexName.trim(),
+      maxDevices: parseInt(newMaxDevices) || 2,
+      trialDays: parseInt(newTrialDays) || 30,
+    });
   };
 
-  const handleToggleLicense = async (license: License) => {
-    try {
-      const updated = await licenseRepository.updateLicense(license.id, { active: !license.active });
-      setLicenses(prev => prev.map(l => l.id === license.id ? updated : l));
-    } catch {
-      Alert.alert('Error', 'No se pudo actualizar');
-    }
+  const handleToggleLicense = (license: License) => {
+    toggleMutation.mutate({ id: license.id, active: !license.active });
   };
 
-  const handleDeleteLicense = async (license: License) => {
+  const handleDeleteLicense = (license: License) => {
     Alert.alert('Eliminar', `¿Eliminar licencia de "${license.complex_name}"?`, [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar', style: 'destructive',
-        onPress: async () => {
-          try {
-            await licenseRepository.deleteLicense(license.id);
-            setLicenses(prev => prev.filter(l => l.id !== license.id));
-          } catch {
-            Alert.alert('Error', 'No se pudo eliminar');
-          }
-        },
-      },
+      { text: 'Eliminar', style: 'destructive', onPress: () => deleteMutation.mutate(license.id) },
     ]);
   };
 
@@ -83,6 +99,23 @@ export default function LicensesScreen() {
       setStringAsync(licenseKey);
       Alert.alert('Copiado', licenseKey);
     });
+  };
+
+  const handleOpenExtendModal = (license: License) => {
+    setExtendLicenseId(license.id);
+    setExtendLicenseName(license.complex_name);
+    setExtendDays('30');
+    setExtendModalVisible(true);
+  };
+
+  const handleExtendLicense = () => {
+    if (!extendLicenseId) return;
+    const days = parseInt(extendDays) || 30;
+    if (days <= 0) {
+      Alert.alert('Error', 'Los días deben ser mayores a 0');
+      return;
+    }
+    extendMutation.mutate({ id: extendLicenseId, days });
   };
 
   const renderLicense = ({ item }: { item: License }) => {
@@ -114,14 +147,23 @@ export default function LicensesScreen() {
           )}
         </View>
         <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, item.active ? styles.actionBtnWarning : styles.actionBtnSuccess]}
-            onPress={() => handleToggleLicense(item)}
-          >
-            <Text style={[styles.actionText, item.active ? styles.actionTextWarning : styles.actionTextSuccess]}>
-              {item.active ? 'Desactivar' : 'Activar'}
-            </Text>
-          </TouchableOpacity>
+          {isExpired ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnReactivate]}
+              onPress={() => handleOpenExtendModal(item)}
+            >
+              <Text style={[styles.actionText, styles.actionTextReactivate]}>Reactivar</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.actionBtn, item.active ? styles.actionBtnWarning : styles.actionBtnSuccess]}
+              onPress={() => handleToggleLicense(item)}
+            >
+              <Text style={[styles.actionText, item.active ? styles.actionTextWarning : styles.actionTextSuccess]}>
+                {item.active ? 'Desactivar' : 'Activar'}
+              </Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.actionBtnDanger} onPress={() => handleDeleteLicense(item)}>
             <Text style={styles.actionTextDanger}>Eliminar</Text>
           </TouchableOpacity>
@@ -143,7 +185,7 @@ export default function LicensesScreen() {
         keyExtractor={i => i.id}
         renderItem={renderLicense}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<Text style={styles.emptyText}>{loading ? 'Cargando...' : 'Sin licencias'}</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>{isLoading ? 'Cargando...' : 'Sin licencias'}</Text>}
       />
       {showCreateModal && (
         <View style={styles.modalOverlay}>
@@ -169,6 +211,29 @@ export default function LicensesScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleCreateLicense}>
                 <Text style={styles.modalConfirmText}>Crear</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+      {extendModalVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Reactivar Licencia</Text>
+            <Text style={styles.modalSubtitle}>
+              Extender licencia de "{extendLicenseName}"
+            </Text>
+            <View style={styles.modalField}>
+              <Text style={styles.modalLabel}>Días de extensión</Text>
+              <TextInput style={styles.modalInput} placeholderTextColor={COLORS.textSecondary}
+                value={extendDays} onChangeText={setExtendDays} keyboardType="numeric" autoFocus />
+            </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setExtendModalVisible(false)}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleExtendLicense}>
+                <Text style={styles.modalConfirmText}>Reactivar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -204,14 +269,17 @@ const styles = StyleSheet.create({
   actionBtnWarning: { backgroundColor: COLORS.warning + '15' },
   actionBtnSuccess: { backgroundColor: '#10B98115' },
   actionBtnDanger: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: COLORS.danger + '15' },
+  actionBtnReactivate: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: '#10B981' + '15' },
   actionText: { fontSize: 13, fontWeight: '600' },
   actionTextWarning: { color: COLORS.warning },
   actionTextSuccess: { color: '#10B981' },
   actionTextDanger: { fontSize: 13, fontWeight: '600', color: COLORS.danger },
+  actionTextReactivate: { fontSize: 13, fontWeight: '600', color: '#10B981' },
   emptyText: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 40 },
   modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalContent: { width: '100%', backgroundColor: COLORS.surface, borderRadius: 16, padding: 20 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 16 },
   modalInput: { backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 12, fontSize: 14, color: COLORS.text, marginBottom: 12 },
   modalRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   modalField: { flex: 1 },

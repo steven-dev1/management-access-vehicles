@@ -1,38 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { COLORS } from '../../../constants';
 import { licenseRepository } from '../../../lib/repositories/license.repository';
 import { useAdminLogout } from '../../../hooks/useAdmin';
-import { License, LicenseDevice } from '../../../types';
 
 export default function PanelScreen() {
   const { logout } = useAdminLogout();
-  const [licenses, setLicenses] = useState<License[]>([]);
-  const [devices, setDevices] = useState<LicenseDevice[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const { data: licenses = [], refetch: refetchLicenses } = useQuery({
+    queryKey: ['admin-licenses'],
+    queryFn: () => licenseRepository.getAllLicenses(),
+  });
+
+  const { data: devices = [], refetch: refetchDevices } = useQuery({
+    queryKey: ['admin-devices'],
+    queryFn: () => licenseRepository.getAllDevices(),
+  });
+
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
-    try {
-      const [lic, dev] = await Promise.all([
-        licenseRepository.getAllLicenses(),
-        licenseRepository.getAllDevices(),
-      ]);
-      setLicenses(lic);
-      setDevices(dev);
-    } catch {
-      Alert.alert('Error', 'No se pudieron cargar los datos');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchLicenses(), refetchDevices()]);
+    setRefreshing(false);
   };
-
-  const onRefresh = () => { setRefreshing(true); loadData(); };
 
   const handleLogout = async () => {
     Alert.alert('Cerrar sesión', '¿Salir del panel de administración?', [
@@ -83,21 +77,34 @@ export default function PanelScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Licencias Recientes</Text>
-          {licenses.slice(0, 5).map(lic => (
-            <View key={lic.id} style={styles.listItem}>
-              <View style={styles.listItemLeft}>
-                <Ionicons name="business" size={18} color={COLORS.primary} />
-                <View>
-                  <Text style={styles.listItemTitle}>{lic.complex_name}</Text>
-                  <Text style={styles.listItemSub}>{lic.license_key}</Text>
+          {licenses.slice(0, 5).map(lic => {
+            const isExpired = lic.trial_ends_at && new Date(lic.trial_ends_at) < new Date();
+            const badgeStyle = !lic.active
+              ? styles.badgeInactive
+              : isExpired
+                ? styles.badgeExpired
+                : styles.badgeActive;
+            const badgeLabel = !lic.active
+              ? 'Inactiva'
+              : isExpired
+                ? 'Expirada'
+                : 'Activa';
+            return (
+              <View key={lic.id} style={styles.listItem}>
+                <View style={styles.listItemLeft}>
+                  <Ionicons name="business" size={18} color={COLORS.primary} />
+                  <View>
+                    <Text style={styles.listItemTitle}>{lic.complex_name}</Text>
+                    <Text style={styles.listItemSub}>{lic.license_key}</Text>
+                  </View>
+                </View>
+                <View style={[styles.badge, badgeStyle]}>
+                  <Text style={styles.badgeText}>{badgeLabel}</Text>
                 </View>
               </View>
-              <View style={[styles.badge, lic.active ? styles.badgeActive : styles.badgeInactive]}>
-                <Text style={styles.badgeText}>{lic.active ? 'Activa' : 'Inactiva'}</Text>
-              </View>
-            </View>
-          ))}
-          {licenses.length === 0 && !loading && (
+            );
+          })}
+          {licenses.length === 0 && (
             <Text style={styles.emptyText}>Sin licencias registradas</Text>
           )}
         </View>
@@ -108,15 +115,18 @@ export default function PanelScreen() {
             <View key={dev.id} style={styles.listItem}>
               <View style={styles.listItemLeft}>
                 <Ionicons name="phone-portrait" size={18} color={COLORS.textSecondary} />
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.listItemTitle}>{dev.device_name || 'Desconocido'}</Text>
+                  {dev.complex_name && (
+                    <Text style={styles.listItemComplex}>{dev.complex_name}</Text>
+                  )}
                   <Text style={styles.listItemSub}>ID: {dev.device_id.substring(0, 12)}...</Text>
                 </View>
               </View>
               <Text style={styles.listItemDate}>{new Date(dev.registered_at).toLocaleDateString('es-ES')}</Text>
             </View>
           ))}
-          {devices.length === 0 && !loading && (
+          {devices.length === 0 && (
             <Text style={styles.emptyText}>Sin dispositivos registrados</Text>
           )}
         </View>
@@ -141,11 +151,13 @@ const styles = StyleSheet.create({
   listItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 12, padding: 14, marginBottom: 8 },
   listItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   listItemTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  listItemComplex: { fontSize: 12, fontWeight: '600', color: COLORS.primary, marginTop: 1 },
   listItemSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   listItemDate: { fontSize: 11, color: COLORS.textSecondary },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   badgeActive: { backgroundColor: '#10B98120' },
   badgeInactive: { backgroundColor: COLORS.danger + '20' },
+  badgeExpired: { backgroundColor: COLORS.warning + '20' },
   badgeText: { fontSize: 11, fontWeight: '600', color: COLORS.text },
   emptyText: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 20, fontSize: 13 },
 });
