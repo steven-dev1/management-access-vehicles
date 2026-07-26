@@ -197,6 +197,7 @@ export const DashboardScreen: React.FC = () => {
         {sortedSections.map(sectionId => (
           <CollapsibleCard
             key={sectionId}
+            title={SECTION_LABELS[sectionId]}
             collapsed={isCollapsed(sectionId)}
             pinned={isPinned(sectionId)}
             onToggleCollapse={() => toggleCollapse(sectionId)}

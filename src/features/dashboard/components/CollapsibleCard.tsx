@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants';
 
@@ -21,26 +21,29 @@ export const CollapsibleCard: React.FC<CollapsibleCardProps> = ({
   children,
 }) => {
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        {title ? <Text style={styles.title}>{title}</Text> : <View style={{ flex: 1 }} />}
+    <View style={[styles.container, collapsed && styles.containerCollapsed]}>
+      <TouchableOpacity
+        style={[styles.header, collapsed && styles.headerCollapsed]}
+        onPress={onToggleCollapse}
+        activeOpacity={0.7}
+      >
+        {pinned && <Ionicons name="pin" size={12} color={COLORS.primary} style={styles.pinIcon} />}
+        {title ? <Text style={[styles.title, collapsed && styles.titleCollapsed]} numberOfLines={1}>{title}</Text> : <View style={{ flex: 1 }} />}
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionBtn} onPress={onTogglePin}>
+          <TouchableOpacity style={styles.actionBtn} onPress={onTogglePin} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons
               name={pinned ? 'pin' : 'pin-outline'}
-              size={16}
+              size={14}
               color={pinned ? COLORS.primary : COLORS.textSecondary}
             />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={onToggleCollapse}>
-            <Ionicons
-              name={collapsed ? 'chevron-down' : 'chevron-up'}
-              size={18}
-              color={COLORS.textSecondary}
-            />
-          </TouchableOpacity>
+          <Ionicons
+            name={collapsed ? 'chevron-forward' : 'chevron-down'}
+            size={16}
+            color={COLORS.textSecondary}
+          />
         </View>
-      </View>
+      </TouchableOpacity>
       {!collapsed && <View style={styles.content}>{children}</View>}
     </View>
   );
@@ -52,13 +55,24 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 12,
     overflow: 'hidden',
+    width: '100%',
+  },
+  containerCollapsed: {
+    marginBottom: 6,
+    borderRadius: 10,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  headerCollapsed: {
     paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  pinIcon: {
+    marginRight: 6,
   },
   title: {
     fontSize: 14,
@@ -66,20 +80,24 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     flex: 1,
   },
+  titleCollapsed: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
   },
   actionBtn: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
   },
 });
