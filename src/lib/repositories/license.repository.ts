@@ -124,7 +124,7 @@ class LicenseRepository {
     return data;
   }
 
-  async updateLicense(id: string, updates: Partial<Pick<License, 'complex_name' | 'max_devices' | 'active'>>): Promise<License> {
+  async updateLicense(id: string, updates: Partial<Pick<License, 'complex_name' | 'max_devices' | 'active' | 'trial_ends_at'>>): Promise<License> {
     const { data, error } = await supabase
       .from('licenses')
       .update({ ...updates, updated_at: new Date().toISOString() })
