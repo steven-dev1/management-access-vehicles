@@ -4,8 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, getTowerColor } from '../../../constants';
 import { OccupancyStats } from '../../../types';
 
-const TOTAL_APARTMENTS_PER_TOWER = 20;
-
 const getOccupancyColor = (rate: number): string => {
   if (rate > 75) return COLORS.success;
   if (rate >= 50) return COLORS.warning;
@@ -16,7 +14,7 @@ export const OccupancyCard: React.FC<{ occupancyStats: OccupancyStats[] }> = ({
   occupancyStats,
 }) => {
   const totalVehicles = occupancyStats.reduce((sum, s) => sum + s.total_vehicles, 0);
-  const totalOccupied = occupancyStats.reduce((sum, s) => sum + s.occupied_apartments, 0);
+  const totalMax = occupancyStats.reduce((sum, s) => sum + s.max_vehicles, 0);
   const avgRate =
     occupancyStats.length > 0
       ? occupancyStats.reduce((sum, s) => sum + s.occupancy_rate, 0) / occupancyStats.length
@@ -31,8 +29,8 @@ export const OccupancyCard: React.FC<{ occupancyStats: OccupancyStats[] }> = ({
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryValue}>{totalOccupied}</Text>
-          <Text style={styles.summaryLabel}>Apartamentos</Text>
+          <Text style={styles.summaryValue}>{totalMax}</Text>
+          <Text style={styles.summaryLabel}>Capacidad</Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
@@ -81,7 +79,7 @@ export const OccupancyCard: React.FC<{ occupancyStats: OccupancyStats[] }> = ({
                   <Text style={styles.detailText}>{stat.motorcycle_count}</Text>
                 </View>
                 <Text style={styles.aptText}>
-                  {stat.occupied_apartments}/{TOTAL_APARTMENTS_PER_TOWER} apartamentos
+                  {stat.total_vehicles}/{stat.max_vehicles} vehículos
                 </Text>
               </View>
             </View>

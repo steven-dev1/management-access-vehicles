@@ -345,21 +345,21 @@ export const vehicleRepository = {
 
   async getOccupancyByTower(): Promise<OccupancyStats[]> {
     const { data: vehicles, error } = await addLicenseFilter(
-      supabase.from('vehicles').select('tower, floor, apartment, vehicle_type, apartment_code')
+      supabase.from('vehicles').select('tower, vehicle_type')
     );
     if (error) throw error;
 
     const totalApartments = 20; // 5 floors * 4 apartments
-    const towerMap = new Map<number, { apartments: Set<string>; cars: number; motorcycles: number; total: number }>();
+    const maxPerTower = totalApartments * 2; // 2 vehicles per apartment
+    const towerMap = new Map<number, { cars: number; motorcycles: number; total: number }>();
 
     for (let t = 1; t <= 14; t++) {
-      towerMap.set(t, { apartments: new Set(), cars: 0, motorcycles: 0, total: 0 });
+      towerMap.set(t, { cars: 0, motorcycles: 0, total: 0 });
     }
 
     for (const v of vehicles || []) {
       const stats = towerMap.get(v.tower);
       if (!stats) continue;
-      stats.apartments.add(v.apartment_code);
       stats.total++;
       if (v.vehicle_type === 'car') stats.cars++;
       else stats.motorcycles++;
@@ -368,11 +368,12 @@ export const vehicleRepository = {
     return Array.from(towerMap.entries()).map(([tower, stats]) => ({
       tower,
       total_apartments: totalApartments,
-      occupied_apartments: stats.apartments.size,
+      occupied_apartments: 0,
       total_vehicles: stats.total,
+      max_vehicles: maxPerTower,
       car_count: stats.cars,
       motorcycle_count: stats.motorcycles,
-      occupancy_rate: Math.round((stats.apartments.size / totalApartments) * 100),
+      occupancy_rate: Math.round((stats.total / maxPerTower) * 100),
     }));
   },
 

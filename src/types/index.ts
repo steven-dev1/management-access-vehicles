@@ -110,6 +110,7 @@ export interface OccupancyStats {
   total_apartments: number;
   occupied_apartments: number;
   total_vehicles: number;
+  max_vehicles: number;
   car_count: number;
   motorcycle_count: number;
   occupancy_rate: number;

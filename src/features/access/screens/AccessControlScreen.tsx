@@ -10,6 +10,7 @@ import { useVoiceCommand, isExpoGoEnvironment } from '../../../hooks/useVoiceCom
 import { Vehicle, AccessLog } from '../../../types';
 import { formatRelativeTime, getVehicleTypeColor, parseTimestamp } from '../../../utils';
 import { useHaptics } from '../../../hooks/useHaptics';
+import { useRealtimeAccessLogs } from '../../../hooks/useRealtime';
 
 interface LogSection {
   title: string;
@@ -40,6 +41,8 @@ export const AccessControlScreen: React.FC = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
+
+  useRealtimeAccessLogs(() => { loadRecentLogs(); });
 
   const loadRecentLogs = async () => {
     try {

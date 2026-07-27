@@ -17,6 +17,7 @@ import { COLORS } from '../../../constants';
 import { visitorRepository } from '../../../lib/repositories/visitor.repository';
 import { parseTimestamp } from '../../../utils';
 import { Visitor, VisitorStatus } from '../../../types';
+import { useRealtimeVisitors } from '../../../hooks/useRealtime';
 
 const STATUS_COLORS: Record<VisitorStatus, string> = {
   expected: '#F59E0B',
@@ -61,6 +62,8 @@ export const VisitorListScreen: React.FC = () => {
       setLoading(false);
     }
   }, [searchQuery, activeFilter]);
+
+  useRealtimeVisitors(() => { loadVisitors(); });
 
   const applyFilters = (data: Visitor[], query: string, filter: string) => {
     let result = data;
