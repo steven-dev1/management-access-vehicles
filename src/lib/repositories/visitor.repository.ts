@@ -68,52 +68,55 @@ export const visitorRepository = {
   },
 
   async checkIn(id: string): Promise<Visitor> {
-    const { data, error } = await supabase
+    const lid = getCurrentLicenseId();
+    let query = supabase
       .from('visitors')
       .update({
         status: 'active',
         entry_time: new Date().toISOString(),
       })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (lid) query = query.eq('license_id', lid);
+    const { data, error } = await query.select().single();
 
     if (error) throw error;
     return data as Visitor;
   },
 
   async checkOut(id: string): Promise<Visitor> {
-    const { data, error } = await supabase
+    const lid = getCurrentLicenseId();
+    let query = supabase
       .from('visitors')
       .update({
         status: 'completed',
         exit_time: new Date().toISOString(),
       })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (lid) query = query.eq('license_id', lid);
+    const { data, error } = await query.select().single();
 
     if (error) throw error;
     return data as Visitor;
   },
 
   async update(id: string, data: Partial<VisitorFormData>): Promise<Visitor> {
-    const { data: updated, error } = await supabase
+    const lid = getCurrentLicenseId();
+    let query = supabase
       .from('visitors')
       .update(data)
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (lid) query = query.eq('license_id', lid);
+    const { data: updated, error } = await query.select().single();
 
     if (error) throw error;
     return updated as Visitor;
   },
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('visitors')
-      .delete()
-      .eq('id', id);
+    const lid = getCurrentLicenseId();
+    let query = supabase.from('visitors').delete().eq('id', id);
+    if (lid) query = query.eq('license_id', lid);
+    const { error } = await query;
 
     if (error) throw error;
   },

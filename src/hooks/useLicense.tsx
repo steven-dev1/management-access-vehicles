@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { licenseRepository } from '../lib/repositories/license.repository';
 import { setCurrentLicenseId } from '../lib/repositories/license-context';
 import { License, LicenseValidation } from '../types';
 import { supabase } from '../lib/supabase';
+import { offlineCacheService } from '../lib/offlineCache.service';
 
-const LICENSE_KEY_STORAGE = '@vehicle_access_license_key';
+const LICENSE_KEY_STORAGE = 'vehicle_access_license_key';
 
 interface LicenseState {
   isLoading: boolean;
@@ -36,7 +37,7 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
 
   const validateStoredLicense = useCallback(async () => {
     try {
-      const storedKey = await AsyncStorage.getItem(LICENSE_KEY_STORAGE);
+      const storedKey = await SecureStore.getItemAsync(LICENSE_KEY_STORAGE);
 
       if (!storedKey) {
         setState(prev => ({ ...prev, isLoading: false, needsActivation: true }));
@@ -113,7 +114,7 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
         if (!registered) return { success: false, error: 'Error al registrar dispositivo' };
       }
 
-      await AsyncStorage.setItem(LICENSE_KEY_STORAGE, licenseKey.toUpperCase().trim());
+      await SecureStore.setItemAsync(LICENSE_KEY_STORAGE, licenseKey.toUpperCase().trim());
 
       setState({
         isLoading: false,
@@ -132,8 +133,9 @@ export function LicenseProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem(LICENSE_KEY_STORAGE);
+    await SecureStore.deleteItemAsync(LICENSE_KEY_STORAGE);
     setCurrentLicenseId('');
+    try { await offlineCacheService.clearAll(); } catch {}
     try { await supabase.auth.signOut(); } catch {
       try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
     }

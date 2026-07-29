@@ -96,11 +96,10 @@ export const vehicleRepository = {
   },
 
   async getById(id: string): Promise<Vehicle | null> {
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const lid = getCurrentLicenseId();
+    let query = supabase.from('vehicles').select('*').eq('id', id);
+    if (lid) query = query.eq('license_id', lid);
+    const { data, error } = await query.single();
 
     if (error) throw error;
     return data;
@@ -124,27 +123,29 @@ export const vehicleRepository = {
   },
 
   async update(id: string, vehicle: VehicleFormData): Promise<Vehicle> {
+    const lid = getCurrentLicenseId();
     const apartment_code = `${vehicle.floor * 100 + vehicle.apartment}`;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('vehicles')
       .update({
         ...vehicle,
         apartment_code,
       })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (lid) query = query.eq('license_id', lid);
+
+    const { data, error } = await query.select().single();
 
     if (error) throw error;
     return data;
   },
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('vehicles')
-      .delete()
-      .eq('id', id);
+    const lid = getCurrentLicenseId();
+    let query = supabase.from('vehicles').delete().eq('id', id);
+    if (lid) query = query.eq('license_id', lid);
+    const { error } = await query;
 
     if (error) throw error;
   },
@@ -325,12 +326,13 @@ export const vehicleRepository = {
   },
 
   async toggleRestriction(vehicleId: string, isRestricted: boolean, reason?: string): Promise<Vehicle> {
-    const { data, error } = await supabase
+    const lid = getCurrentLicenseId();
+    let query = supabase
       .from('vehicles')
       .update({ is_restricted: isRestricted, restriction_reason: reason || null })
-      .eq('id', vehicleId)
-      .select()
-      .single();
+      .eq('id', vehicleId);
+    if (lid) query = query.eq('license_id', lid);
+    const { data, error } = await query.select().single();
     if (error) throw error;
     return data;
   },
