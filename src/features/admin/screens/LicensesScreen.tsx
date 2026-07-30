@@ -24,6 +24,7 @@ export default function LicensesScreen() {
   const [editMaxDevices, setEditMaxDevices] = useState('');
   const [editTrialDate, setEditTrialDate] = useState('');
   const [editPermanent, setEditPermanent] = useState(false);
+  const [search, setSearch] = useState('');
 
   const { data: licenses = [], isLoading } = useQuery({
     queryKey: ['admin-licenses'],
@@ -223,6 +224,11 @@ export default function LicensesScreen() {
     );
   };
 
+  const filteredLicenses = licenses.filter(l =>
+    l.complex_name.toLowerCase().includes(search.toLowerCase()) ||
+    l.license_key.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -231,8 +237,23 @@ export default function LicensesScreen() {
           <Ionicons name="add" size={24} color={COLORS.text} />
         </TouchableOpacity>
       </View>
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={18} color={COLORS.textSecondary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar por nombre o clave..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
       <FlatList
-        data={licenses}
+        data={filteredLicenses}
         keyExtractor={i => i.id}
         renderItem={renderLicense}
         contentContainerStyle={styles.list}
@@ -355,6 +376,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
   addBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 20, gap: 12 },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 10, marginHorizontal: 20, marginBottom: 8, paddingHorizontal: 12, gap: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: COLORS.text, paddingVertical: 10 },
   card: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },

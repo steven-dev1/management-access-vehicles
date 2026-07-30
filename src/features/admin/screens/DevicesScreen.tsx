@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { LicenseDevice } from '../../../types';
 
 export default function DevicesScreen() {
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
 
   const { data: devices = [], isLoading } = useQuery({
     queryKey: ['admin-devices'],
@@ -33,6 +34,13 @@ export default function DevicesScreen() {
     ]);
   };
 
+  const filtered = devices.filter(d => {
+    const q = search.toLowerCase();
+    return !q || (d.device_name || '').toLowerCase().includes(q)
+      || (d.complex_name || '').toLowerCase().includes(q)
+      || (d.device_id || '').toLowerCase().includes(q);
+  });
+
   const renderDevice = ({ item }: { item: LicenseDevice & { license_key?: string; complex_name?: string } }) => {
     const isRecent = new Date(item.registered_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const isActive = item.active;
@@ -45,7 +53,7 @@ export default function DevicesScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={[styles.cardTitle, !isActive && styles.textDisabled]}>{item.device_name || 'Dispositivo desconocido'}</Text>
+                <Text style={[styles.cardTitle, !isActive && styles.textDisabled]}>{item.device_name || 'Desconocido'}</Text>
                 {!isActive && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>Inactivo</Text>
@@ -63,16 +71,6 @@ export default function DevicesScreen() {
             />
           </TouchableOpacity>
         </View>
-        <View style={styles.cardMeta}>
-          <View style={styles.metaItem}>
-            <Ionicons name="key" size={12} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{item.license_key}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Ionicons name="calendar" size={12} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{new Date(item.registered_at).toLocaleDateString('es-ES')}</Text>
-          </View>
-        </View>
         <Text style={styles.deviceId}>ID: {item.device_id.substring(0, 24)}...</Text>
       </View>
     );
@@ -86,12 +84,27 @@ export default function DevicesScreen() {
           <Text style={styles.countText}>{devices.length}</Text>
         </View>
       </View>
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={16} color={COLORS.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar por nombre, conjunto o ID..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
       <FlatList
-        data={devices}
+        data={filtered}
         keyExtractor={i => i.id}
         renderItem={renderDevice}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<Text style={styles.emptyText}>{isLoading ? 'Cargando...' : 'Sin dispositivos registrados'}</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>{isLoading ? 'Cargando...' : search ? 'Sin resultados' : 'Sin dispositivos registrados'}</Text>}
       />
     </SafeAreaView>
   );
@@ -103,10 +116,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
   countBadge: { backgroundColor: COLORS.primary + '20', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   countText: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, marginHorizontal: 20, marginBottom: 12, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, color: COLORS.text, fontSize: 14 },
   list: { padding: 20, gap: 12 },
   card: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16 },
   cardDisabled: { opacity: 0.6 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   deviceIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
   deviceIconRecent: { backgroundColor: '#10B98115' },
@@ -117,9 +133,6 @@ const styles = StyleSheet.create({
   toggleBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   badge: { backgroundColor: '#EF444420', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
   badgeText: { fontSize: 10, fontWeight: '600', color: '#EF4444' },
-  cardMeta: { flexDirection: 'row', gap: 16, marginBottom: 8 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 12, color: COLORS.textSecondary },
   deviceId: { fontSize: 10, color: COLORS.textSecondary, opacity: 0.6 },
   emptyText: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 40 },
 });
