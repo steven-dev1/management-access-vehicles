@@ -162,7 +162,6 @@ class LicenseRepository {
     const { data, error } = await supabase
       .from('license_devices')
       .select('*, licenses(license_key, complex_name)')
-      .eq('active', true)
       .order('registered_at', { ascending: false });
 
     if (error) throw error;
@@ -177,6 +176,15 @@ class LicenseRepository {
     const { error } = await supabase
       .from('license_devices')
       .update({ active: false })
+      .eq('id', deviceId);
+
+    return !error;
+  }
+
+  async enableDevice(deviceId: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('license_devices')
+      .update({ active: true })
       .eq('id', deviceId);
 
     return !error;

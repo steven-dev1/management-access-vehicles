@@ -15,37 +15,52 @@ export default function DevicesScreen() {
     queryFn: () => licenseRepository.getAllDevices(),
   });
 
-  const removeMutation = useMutation({
-    mutationFn: (deviceId: string) => licenseRepository.removeDevice(deviceId),
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+      active ? licenseRepository.enableDevice(id) : licenseRepository.removeDevice(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-devices'] });
     },
-    onError: () => Alert.alert('Error', 'No se pudo desactivar'),
+    onError: () => Alert.alert('Error', 'No se pudo cambiar el estado'),
   });
 
-  const handleRemoveDevice = (device: LicenseDevice & { complex_name?: string }) => {
-    Alert.alert('Desactivar', `¿Desactivar "${device.device_name}" de ${device.complex_name}?`, [
+  const handleToggleDevice = (device: LicenseDevice & { complex_name?: string }) => {
+    const newActive = !device.active;
+    const action = newActive ? 'Habilitar' : 'Deshabilitar';
+    Alert.alert(action, `¿${action} "${device.device_name}" de ${device.complex_name}?`, [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Desactivar', style: 'destructive', onPress: () => removeMutation.mutate(device.id) },
+      { text: action, style: newActive ? 'default' : 'destructive', onPress: () => toggleMutation.mutate({ id: device.id, active: newActive }) },
     ]);
   };
 
   const renderDevice = ({ item }: { item: LicenseDevice & { license_key?: string; complex_name?: string } }) => {
     const isRecent = new Date(item.registered_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const isActive = item.active;
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, !isActive && styles.cardDisabled]}>
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleRow}>
-            <View style={[styles.deviceIcon, isRecent && styles.deviceIconRecent]}>
-              <Ionicons name="phone-portrait" size={18} color={isRecent ? '#10B981' : COLORS.textSecondary} />
+            <View style={[styles.deviceIcon, isRecent && isActive && styles.deviceIconRecent, !isActive && styles.deviceIconDisabled]}>
+              <Ionicons name="phone-portrait" size={18} color={isActive ? (isRecent ? '#10B981' : COLORS.textSecondary) : '#EF4444'} />
             </View>
-            <View>
-              <Text style={styles.cardTitle}>{item.device_name || 'Dispositivo desconocido'}</Text>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.cardTitle, !isActive && styles.textDisabled]}>{item.device_name || 'Dispositivo desconocido'}</Text>
+                {!isActive && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>Inactivo</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.cardSub}>{item.complex_name}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.removeBtn} onPress={() => handleRemoveDevice(item)}>
-            <Ionicons name="close-circle" size={22} color={COLORS.danger} />
+          <TouchableOpacity style={styles.toggleBtn} onPress={() => handleToggleDevice(item)}>
+            <Ionicons
+              name={isActive ? 'close-circle' : 'checkmark-circle'}
+              size={22}
+              color={isActive ? COLORS.danger : '#10B981'}
+            />
           </TouchableOpacity>
         </View>
         <View style={styles.cardMeta}>
@@ -90,13 +105,18 @@ const styles = StyleSheet.create({
   countText: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
   list: { padding: 20, gap: 12 },
   card: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16 },
+  cardDisabled: { opacity: 0.6 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   deviceIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
   deviceIconRecent: { backgroundColor: '#10B98115' },
+  deviceIconDisabled: { backgroundColor: '#EF444415' },
   cardTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  textDisabled: { color: COLORS.textSecondary },
   cardSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  removeBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  toggleBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  badge: { backgroundColor: '#EF444420', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
+  badgeText: { fontSize: 10, fontWeight: '600', color: '#EF4444' },
   cardMeta: { flexDirection: 'row', gap: 16, marginBottom: 8 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { fontSize: 12, color: COLORS.textSecondary },
