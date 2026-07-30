@@ -17,6 +17,10 @@ CREATE TABLE vehicles (
   apartment INTEGER NOT NULL CHECK (apartment >= 1 AND apartment <= 4),
   apartment_code VARCHAR(10) NOT NULL,
   owner_name VARCHAR(100) NOT NULL,
+  is_restricted BOOLEAN DEFAULT false,
+  restriction_reason TEXT,
+  images TEXT[] DEFAULT '{}',
+  license_id UUID REFERENCES licenses(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -29,6 +33,7 @@ CREATE INDEX idx_vehicles_tower ON vehicles(tower);
 CREATE INDEX idx_vehicles_apartment_code ON vehicles(apartment_code);
 CREATE INDEX idx_vehicles_vehicle_type ON vehicles(vehicle_type);
 CREATE INDEX idx_vehicles_created_at ON vehicles(created_at DESC);
+CREATE INDEX idx_vehicles_license_id ON vehicles(license_id);
 
 -- =============================================
 -- FUNCTION: Update updated_at timestamp
@@ -54,50 +59,6 @@ CREATE TRIGGER update_vehicles_updated_at
 -- =============================================
 ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
 
--- Allow all operations for authenticated and anonymous users
--- In production, you may want to restrict this further
-CREATE POLICY "Allow all operations on vehicles"
-  ON vehicles
-  FOR ALL
-  USING (true)
-  WITH CHECK (true);
-
--- =============================================
--- VIEW: Dashboard statistics
--- =============================================
-CREATE OR REPLACE VIEW dashboard_stats AS
-SELECT
-  (SELECT COUNT(*) FROM vehicles) as total_vehicles,
-  (SELECT COUNT(*) FROM vehicles WHERE vehicle_type = 'car') as total_cars,
-  (SELECT COUNT(*) FROM vehicles WHERE vehicle_type = 'motorcycle') as total_motorcycles;
-
--- =============================================
--- VIEW: Vehicles per tower
--- =============================================
-CREATE OR REPLACE VIEW vehicles_per_tower AS
-SELECT
-  tower,
-  COUNT(*) as total_vehicles,
-  COUNT(*) FILTER (WHERE vehicle_type = 'car') as total_cars,
-  COUNT(*) FILTER (WHERE vehicle_type = 'motorcycle') as total_motorcycles
-FROM vehicles
-GROUP BY tower
-ORDER BY tower;
-
--- =============================================
--- VIEW: Apartments exceeding limits
--- =============================================
-CREATE OR REPLACE VIEW apartments_exceeding_limits AS
-SELECT
-  apartment_code,
-  tower,
-  floor,
-  apartment,
-  COUNT(*) as vehicle_count,
-  COUNT(*) FILTER (WHERE vehicle_type = 'car') as car_count,
-  COUNT(*) FILTER (WHERE vehicle_type = 'motorcycle') as motorcycle_count
-FROM vehicles
-GROUP BY apartment_code, tower, floor, apartment
-HAVING COUNT(*) > 2
-   OR COUNT(*) FILTER (WHERE vehicle_type = 'car') > 1
-   OR COUNT(*) FILTER (WHERE vehicle_type = 'motorcycle') > 1;
+-- RLS policies: permissive at DB level.
+-- Tenant isolation is enforced client-side via addLicenseFilter().
+CREATE POLICY "vehicles_all" ON vehicles FOR ALL USING (true) WITH CHECK (true);

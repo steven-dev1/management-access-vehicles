@@ -14,6 +14,7 @@ CREATE TABLE visitors (
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('expected', 'active', 'completed', 'expired')),
   entry_time TIMESTAMP WITH TIME ZONE,
   exit_time TIMESTAMP WITH TIME ZONE,
+  license_id UUID REFERENCES licenses(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -22,12 +23,8 @@ CREATE INDEX idx_visitors_plate ON visitors(visitor_plate);
 CREATE INDEX idx_visitors_status ON visitors(status);
 CREATE INDEX idx_visitors_host ON visitors(host_tower, host_apartment_code);
 CREATE INDEX idx_visitors_created ON visitors(created_at DESC);
+CREATE INDEX idx_visitors_license_id ON visitors(license_id);
 
 -- RLS
 ALTER TABLE visitors ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow all operations on visitors"
-  ON visitors
-  FOR ALL
-  USING (true)
-  WITH CHECK (true);
+CREATE POLICY "visitors_all" ON visitors FOR ALL USING (true) WITH CHECK (true);

@@ -26,33 +26,10 @@ CREATE TABLE license_devices (
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE license_devices ENABLE ROW LEVEL SECURITY;
 
--- Anyone can read licenses (for validation)
-CREATE POLICY "licenses_select" ON licenses FOR SELECT USING (true);
--- Only service role can insert/update/delete licenses
-CREATE POLICY "licenses_insert" ON licenses FOR INSERT WITH CHECK (true);
-CREATE POLICY "licenses_update" ON licenses FOR UPDATE USING (true);
-CREATE POLICY "licenses_delete" ON licenses FOR DELETE USING (true);
+-- Permissive policies. Tenant isolation enforced client-side.
+CREATE POLICY "licenses_all" ON licenses FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "license_devices_all" ON license_devices FOR ALL USING (true) WITH CHECK (true);
 
--- License devices policies
-CREATE POLICY "license_devices_select" ON license_devices FOR SELECT USING (true);
-CREATE POLICY "license_devices_insert" ON license_devices
-  FOR INSERT WITH CHECK (
-    is_admin_user()
-    OR EXISTS (
-      SELECT 1 FROM licenses
-      WHERE licenses.id = license_devices.license_id
-      AND licenses.active = true
-    )
-  );
-CREATE POLICY "license_devices_update" ON license_devices
-  FOR UPDATE USING (
-    is_admin_user() OR license_id = get_license_id()
-  );
-CREATE POLICY "license_devices_delete" ON license_devices
-  FOR DELETE USING (
-    is_admin_user() OR license_id = get_license_id()
-  );
-
--- Index for fast license key lookup
+-- Indexes
 CREATE INDEX idx_licenses_key ON licenses(license_key);
 CREATE INDEX idx_license_devices_license ON license_devices(license_id);
