@@ -11,12 +11,11 @@ import { ViolationsCard } from '../components/ViolationsCard';
 import { OccupancyCard } from '../components/OccupancyCard';
 import { ParkingAlertsCard } from '../components/ParkingAlertsCard';
 import { RestrictedVehiclesCard } from '../components/RestrictedVehiclesCard';
-import { ActivityHeatmap } from '../components/ActivityHeatmap';
-import { WeeklyPatterns } from '../components/WeeklyPatterns';
 import { RecentActivity } from '../components/RecentActivity';
 import { useDashboard } from '../hooks/useDashboard';
 import { useLicense } from '../../../hooks/useLicense';
 import { useDashboardLayout, SectionId } from '../../../hooks/useDashboardLayout';
+import { useRealtime } from '../../../hooks/useRealtime';
 import { LoadingState, ErrorState } from '../../../components/EmptyState';
 import { Vehicle } from '../../../types';
 
@@ -26,6 +25,10 @@ export const DashboardScreen: React.FC = () => {
   const { license, logout } = useLicense();
   const { loaded, toggleCollapse, togglePin, isCollapsed, isPinned, sortSections } = useDashboardLayout();
   const [refreshing, setRefreshing] = useState(false);
+
+  useRealtime(['vehicles', 'access_logs', 'visitors'], () => {
+    refresh();
+  });
 
   const recentVehiclesList = useMemo(() => (
     accessLogs.slice(0, 20)
@@ -69,12 +72,10 @@ export const DashboardScreen: React.FC = () => {
       { id: 'violations', visible: violations.length > 0 },
       { id: 'restricted', visible: restrictedVehicles.length > 0 },
       { id: 'occupancy', visible: true },
-      { id: 'heatmap', visible: accessLogs.length > 0 },
-      { id: 'weekly', visible: accessLogs.length > 0 },
       { id: 'recent', visible: true },
     ];
     return sections.filter(s => s.visible).map(s => s.id);
-  }, [parkingAlerts, violations, restrictedVehicles, accessLogs]);
+  }, [parkingAlerts, violations, restrictedVehicles]);
 
   const sortedSections = useMemo(() => sortSections(availableSections), [availableSections, sortSections]);
 
@@ -84,8 +85,6 @@ export const DashboardScreen: React.FC = () => {
     violations: 'Infracciones',
     restricted: 'Vehículos Restringidos',
     occupancy: 'Ocupación',
-    heatmap: 'Mapa de Actividad',
-    weekly: 'Patrones Semanales',
     recent: 'Actividad Reciente',
   };
 
@@ -109,10 +108,6 @@ export const DashboardScreen: React.FC = () => {
         return <RestrictedVehiclesCard vehicles={restrictedVehicles} onPress={handleVehiclePress} />;
       case 'occupancy':
         return <OccupancyCard occupancyStats={occupancyStats} />;
-      case 'heatmap':
-        return <ActivityHeatmap logs={accessLogs} />;
-      case 'weekly':
-        return <WeeklyPatterns logs={accessLogs} />;
       case 'recent':
         return <RecentActivity vehicles={recentVehiclesList.length > 0 ? recentVehiclesList : recentVehicles} onPress={handleVehiclePress} />;
       default:

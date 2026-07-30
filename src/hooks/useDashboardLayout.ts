@@ -20,8 +20,6 @@ export const SECTION_IDS = [
   'violations',
   'restricted',
   'occupancy',
-  'heatmap',
-  'weekly',
   'recent',
 ] as const;
 
