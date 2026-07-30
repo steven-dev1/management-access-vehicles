@@ -35,9 +35,23 @@ CREATE POLICY "licenses_delete" ON licenses FOR DELETE USING (true);
 
 -- License devices policies
 CREATE POLICY "license_devices_select" ON license_devices FOR SELECT USING (true);
-CREATE POLICY "license_devices_insert" ON license_devices FOR INSERT WITH CHECK (true);
-CREATE POLICY "license_devices_update" ON license_devices FOR UPDATE USING (true);
-CREATE POLICY "license_devices_delete" ON license_devices FOR DELETE USING (true);
+CREATE POLICY "license_devices_insert" ON license_devices
+  FOR INSERT WITH CHECK (
+    is_admin_user()
+    OR EXISTS (
+      SELECT 1 FROM licenses
+      WHERE licenses.id = license_devices.license_id
+      AND licenses.active = true
+    )
+  );
+CREATE POLICY "license_devices_update" ON license_devices
+  FOR UPDATE USING (
+    is_admin_user() OR license_id = get_license_id()
+  );
+CREATE POLICY "license_devices_delete" ON license_devices
+  FOR DELETE USING (
+    is_admin_user() OR license_id = get_license_id()
+  );
 
 -- Index for fast license key lookup
 CREATE INDEX idx_licenses_key ON licenses(license_key);
