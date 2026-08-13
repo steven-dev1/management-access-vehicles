@@ -301,36 +301,32 @@ export const AccessControlScreen: React.FC = () => {
                 </View>
               </View>
               <View style={styles.filterRow}>
-                <TouchableOpacity
-                  style={[styles.filterInput, { flex: 1 }]}
-                  onPress={() => setShowPickerFrom(true)}
-                  activeOpacity={0.7}
-                >
+                <View style={[styles.filterInput, { flex: 1 }]}>
                   <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
-                  <Text style={[styles.filterInputText, !filterDateFrom && { color: COLORS.textSecondary }]}>
-                    {filterDateFrom ? filterDateFrom.toLocaleDateString('es-ES') : 'Desde'}
-                  </Text>
+                  <TouchableOpacity style={styles.filterDateBtn} onPress={() => setShowPickerFrom(true)}>
+                    <Text style={[styles.filterInputText, !filterDateFrom && { color: COLORS.textSecondary }]}>
+                      {filterDateFrom ? filterDateFrom.toLocaleDateString('es-ES') : 'Desde'}
+                    </Text>
+                  </TouchableOpacity>
                   {filterDateFrom && (
-                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); setFilterDateFrom(null); }}>
+                    <TouchableOpacity onPress={() => setFilterDateFrom(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                   )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.filterInput, { flex: 1 }]}
-                  onPress={() => setShowPickerTo(true)}
-                  activeOpacity={0.7}
-                >
+                </View>
+                <View style={[styles.filterInput, { flex: 1 }]}>
                   <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
-                  <Text style={[styles.filterInputText, !filterDateTo && { color: COLORS.textSecondary }]}>
-                    {filterDateTo ? filterDateTo.toLocaleDateString('es-ES') : 'Hasta'}
-                  </Text>
+                  <TouchableOpacity style={styles.filterDateBtn} onPress={() => setShowPickerTo(true)}>
+                    <Text style={[styles.filterInputText, !filterDateTo && { color: COLORS.textSecondary }]}>
+                      {filterDateTo ? filterDateTo.toLocaleDateString('es-ES') : 'Hasta'}
+                    </Text>
+                  </TouchableOpacity>
                   {filterDateTo && (
-                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); setFilterDateTo(null); }}>
+                    <TouchableOpacity onPress={() => setFilterDateTo(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                   )}
-                </TouchableOpacity>
+                </View>
               </View>
               {(filterPlate || filterDateFrom || filterDateTo) && (
                 <TouchableOpacity style={styles.clearFiltersBtn} onPress={() => { setFilterPlate(''); setFilterDateFrom(null); setFilterDateTo(null); }}>
@@ -1062,6 +1058,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     color: COLORS.text,
+  },
+  filterDateBtn: {
+    flex: 1,
+    justifyContent: 'center',
   },
   clearFiltersBtn: {
     flexDirection: 'row',
