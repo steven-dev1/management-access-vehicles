@@ -48,31 +48,112 @@ export const generateAllApartments = () => {
 
 export const getTowerColor = (tower: number): string => {
   const colors = [
-    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
-    '#14B8A6', '#E11D48', '#A855F7', '#0EA5E9'
+    '#60A5FA', '#34D399', '#FBBF24', '#F87171', '#A78BFA',
+    '#F472B6', '#22D3EE', '#A3E635', '#FB923C', '#818CF8',
+    '#2DD4BF', '#FB7185', '#C084FC', '#38BDF8'
   ];
   return colors[(tower - 1) % colors.length];
 };
 
 export const getVehicleTypeColor = (type: string): string => {
-  return type === 'car' ? '#3B82F6' : '#8B5CF6';
+  return type === 'car' ? '#60A5FA' : '#A78BFA';
 };
 
+// 2026 Dark-first Design System
+// Based on: glassmorphism 2.0, luminance hierarchy, off-black surfaces
 export const COLORS = {
-  primary: '#3B82F6',
-  primaryDark: '#2563EB',
+  // Brand
+  primary: '#60A5FA',
+  primaryDark: '#3B82F6',
   primaryLight: '#93C5FD',
-  secondary: '#10B981',
-  warning: '#F59E0B',
-  danger: '#EF4444',
-  background: '#0A0A0A',
-  surface: '#1A1A1A',
-  surfaceLight: '#2A2A2A',
-  text: '#FFFFFF',
-  textSecondary: '#9CA3AF',
-  border: '#374151',
-  success: '#10B981',
-  car: '#3B82F6',
-  motorcycle: '#8B5CF6',
-};
+  primaryGlow: 'rgba(96, 165, 250, 0.15)',
+
+  // Semantic
+  success: '#34D399',
+  successGlow: 'rgba(52, 211, 153, 0.15)',
+  warning: '#FBBF24',
+  warningGlow: 'rgba(251, 191, 36, 0.15)',
+  danger: '#F87171',
+  dangerGlow: 'rgba(248, 113, 113, 0.15)',
+  info: '#22D3EE',
+  infoGlow: 'rgba(34, 211, 238, 0.15)',
+
+  // Vehicle
+  car: '#60A5FA',
+  motorcycle: '#A78BFA',
+  secondary: '#34D399',
+
+  // Surfaces (4-level luminance hierarchy)
+  background: '#09090B',
+  surface: '#18181B',
+  surfaceElevated: '#27272A',
+  surfaceOverlay: 'rgba(24, 24, 27, 0.85)',
+  surfaceHighlight: '#3F3F46',
+
+  // Text
+  text: '#FAFAFA',
+  textSecondary: '#A1A1AA',
+  textMuted: '#71717A',
+  textInverse: '#09090B',
+
+  // Borders & Dividers
+  border: '#27272A',
+  borderLight: '#3F3F46',
+  borderFocus: '#60A5FA',
+  divider: 'rgba(63, 63, 70, 0.5)',
+
+  // Glass (for glassmorphism effects)
+  glass: 'rgba(24, 24, 27, 0.6)',
+  glassBorder: 'rgba(255, 255, 255, 0.08)',
+  glassHighlight: 'rgba(255, 255, 255, 0.04)',
+} as const;
+
+export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+} as const;
+
+export const RADIUS = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  full: 9999,
+} as const;
+
+export const SHADOWS = {
+  sm: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  md: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  lg: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  glow: (color: string) => ({
+    shadowColor: color,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  }),
+} as const;

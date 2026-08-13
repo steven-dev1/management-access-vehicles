@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../../constants';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '../../../constants';
 import { DashboardStats as DashboardStatsType } from '../../../types';
 
 interface StatsCardProps {
@@ -13,59 +13,110 @@ export const StatsCard: React.FC<StatsCardProps> = ({ stats }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
-        <View style={[styles.iconContainer, { backgroundColor: COLORS.primary + '20' }]}>
-          <Ionicons name="car" size={24} color={COLORS.primary} />
-        </View>
-        <Text style={styles.value}>{stats.total_cars}</Text>
-        <Text style={styles.label}>Carros</Text>
-      </View>
-      <View style={styles.card}>
-        <View style={[styles.iconContainer, { backgroundColor: '#8B5CF6' + '20' }]}>
-          <Ionicons name="bicycle" size={24} color="#8B5CF6" />
-        </View>
-        <Text style={styles.value}>{stats.total_motorcycles}</Text>
-        <Text style={styles.label}>Motos</Text>
-      </View>
-      <View style={styles.card}>
-        <View style={[styles.iconContainer, { backgroundColor: COLORS.secondary + '20' }]}>
-          <Ionicons name="albums" size={24} color={COLORS.secondary} />
-        </View>
-        <Text style={styles.value}>{stats.total_vehicles}</Text>
-        <Text style={styles.label}>Total</Text>
-      </View>
+      <StatItem
+        icon="car"
+        value={stats.total_cars}
+        label="Carros"
+        color={COLORS.car}
+        glow={COLORS.primaryGlow}
+      />
+      <StatItem
+        icon="bicycle"
+        value={stats.total_motorcycles}
+        label="Motos"
+        color={COLORS.motorcycle}
+        glow="rgba(167, 139, 250, 0.15)"
+      />
+      <StatItem
+        icon="albums"
+        value={stats.total_vehicles}
+        label="Total"
+        color={COLORS.secondary}
+        glow={COLORS.successGlow}
+      />
     </View>
+  );
+};
+
+interface StatItemProps {
+  icon: string;
+  value: number;
+  label: string;
+  color: string;
+  glow: string;
+}
+
+const StatItem: React.FC<StatItemProps> = ({ icon, value, label, color, glow }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  return (
+    <Animated.View
+      style={[styles.card, { transform: [{ scale: scaleAnim }] }]}
+      onTouchStart={handlePressIn}
+      onTouchEnd={handlePressOut}
+    >
+      <View style={[styles.iconContainer, { backgroundColor: glow }]}>
+        <Ionicons name={icon as any} size={22} color={color} />
+      </View>
+      <Text style={styles.value}>{value}</Text>
+      <Text style={styles.label}>{label}</Text>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: 12,
+    gap: SPACING.sm + 4,
   },
   card: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: COLORS.glass,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    ...SHADOWS.sm,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   value: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: COLORS.text,
-    marginBottom: 4,
+    marginBottom: SPACING.xs,
+    letterSpacing: -0.5,
   },
   label: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontWeight: '500',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
 });

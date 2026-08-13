@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, getTowerColor } from '../../../constants';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '../../../constants';
+import { getTowerColor } from '../../../constants';
 import { Vehicle } from '../../../types';
 import { vehicleRepository } from '../../../lib/repositories/vehicle.repository';
 
@@ -10,7 +11,10 @@ interface RestrictedVehiclesCardProps {
   onPress: (vehicle: Vehicle) => void;
 }
 
-export const RestrictedVehiclesCard: React.FC<RestrictedVehiclesCardProps> = ({ vehicles, onPress }) => {
+export const RestrictedVehiclesCard: React.FC<RestrictedVehiclesCardProps> = ({
+  vehicles,
+  onPress,
+}) => {
   const [expanded, setExpanded] = useState(false);
 
   if (!vehicles.length) return null;
@@ -24,14 +28,20 @@ export const RestrictedVehiclesCard: React.FC<RestrictedVehiclesCardProps> = ({ 
         text: 'PDF',
         onPress: async () => {
           try {
-            const rows = vehicles.map(v =>
-              `<tr><td>${v.license_plate}</td><td>${v.vehicle_type === 'car' ? 'Carro' : 'Moto'}</td><td>T${v.tower} - ${v.apartment_code}</td><td>${v.owner_name}</td><td>${v.restriction_reason || '-'}</td></tr>`
-            ).join('');
+            const rows = vehicles
+              .map(
+                (v) =>
+                  `<tr><td>${v.license_plate}</td><td>${v.vehicle_type === 'car' ? 'Carro' : 'Moto'}</td><td>T${v.tower} - ${v.apartment_code}</td><td>${v.owner_name}</td><td>${v.restriction_reason || '-'}</td></tr>`
+              )
+              .join('');
             const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:-apple-system,sans-serif;padding:20px;color:#333}h1{font-size:20px;color:#EF4444}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px}th{background:#1A1A1A;color:white;padding:8px;text-align:left}td{padding:6px;border-bottom:1px solid #eee}</style></head><body><h1>Vehículos Restringidos</h1><table><thead><tr><th>Placa</th><th>Tipo</th><th>Ubicación</th><th>Propietario</th><th>Motivo</th></tr></thead><tbody>${rows}</tbody></table><p style="margin-top:16px;font-size:10px;color:#999">Total: ${vehicles.length} vehículos</p></body></html>`;
             const Print = await import('expo-print');
             const Sharing = await import('expo-sharing');
             const { uri } = await Print.printToFileAsync({ html });
-            await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Vehículos restringidos' });
+            await Sharing.shareAsync(uri, {
+              mimeType: 'application/pdf',
+              dialogTitle: 'Vehículos restringidos',
+            });
           } catch {
             Alert.alert('Error', 'No se pudo exportar el PDF');
           }
@@ -52,44 +62,14 @@ export const RestrictedVehiclesCard: React.FC<RestrictedVehiclesCardProps> = ({ 
 
   return (
     <View>
-      <View style={styles.header}>
-        <View style={styles.iconBox}>
-          <Ionicons name="shield" size={18} color={COLORS.danger} />
-        </View>
-      </View>
-
       <View style={styles.list}>
-        {displayVehicles.map((vehicle) => {
-          const towerColor = getTowerColor(vehicle.tower);
-          return (
-            <TouchableOpacity
-              key={vehicle.id}
-              style={styles.vehicleCard}
-              onPress={() => onPress(vehicle)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.vehicleLeft}>
-                <View style={[styles.typeIcon, { backgroundColor: towerColor + '20' }]}>
-                  <Ionicons
-                    name={vehicle.vehicle_type === 'car' ? 'car' : 'bicycle'}
-                    size={16}
-                    color={towerColor}
-                  />
-                </View>
-                <View>
-                  <Text style={styles.plate}>{vehicle.license_plate}</Text>
-                  <Text style={styles.location}>T{vehicle.tower} - {vehicle.apartment_code} - {vehicle.owner_name}</Text>
-                </View>
-              </View>
-              {vehicle.restriction_reason && (
-                <View style={styles.reasonBadge}>
-                  <Ionicons name="alert-circle" size={12} color={COLORS.danger} />
-                  <Text style={styles.reasonText} numberOfLines={1}>{vehicle.restriction_reason}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
+        {displayVehicles.map((vehicle) => (
+          <VehicleItem
+            key={vehicle.id}
+            vehicle={vehicle}
+            onPress={onPress}
+          />
+        ))}
       </View>
 
       {vehicles.length > 5 && (
@@ -103,15 +83,19 @@ export const RestrictedVehiclesCard: React.FC<RestrictedVehiclesCardProps> = ({ 
           </Text>
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}
-            size={16}
+            size={15}
             color={COLORS.primary}
           />
         </TouchableOpacity>
       )}
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.exportBtn} onPress={handleExport} activeOpacity={0.7}>
-          <Ionicons name="document-text-outline" size={16} color={COLORS.danger} />
+        <TouchableOpacity
+          style={styles.exportBtn}
+          onPress={handleExport}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="document-text-outline" size={15} color={COLORS.danger} />
           <Text style={styles.exportBtnText}>Exportar</Text>
         </TouchableOpacity>
       </View>
@@ -119,95 +103,142 @@ export const RestrictedVehiclesCard: React.FC<RestrictedVehiclesCardProps> = ({ 
   );
 };
 
+interface VehicleItemProps {
+  vehicle: Vehicle;
+  onPress: (vehicle: Vehicle) => void;
+}
+
+const VehicleItem: React.FC<VehicleItemProps> = ({ vehicle, onPress }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const towerColor = getTowerColor(vehicle.tower);
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.97,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  return (
+    <Animated.View
+      style={[styles.vehicleCard, { transform: [{ scale: scaleAnim }] }]}
+    >
+      <TouchableOpacity
+        style={styles.vehicleTouchable}
+        onPress={() => onPress(vehicle)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={0.85}
+      >
+        <View style={styles.vehicleLeft}>
+          <View style={[styles.typeIcon, { backgroundColor: towerColor + '15' }]}>
+            <Ionicons
+              name={vehicle.vehicle_type === 'car' ? 'car' : 'bicycle'}
+              size={15}
+              color={towerColor}
+            />
+          </View>
+          <View style={styles.vehicleInfo}>
+            <Text style={styles.plate}>{vehicle.license_plate}</Text>
+            <Text style={styles.location}>
+              T{vehicle.tower} · {vehicle.apartment_code} · {vehicle.owner_name}
+            </Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
+      </TouchableOpacity>
+      {vehicle.restriction_reason && (
+        <View style={styles.reasonRow}>
+          <Ionicons name="alert-circle" size={11} color={COLORS.danger} />
+          <Text style={styles.reasonText} numberOfLines={1}>
+            {vehicle.restriction_reason}
+          </Text>
+        </View>
+      )}
+    </Animated.View>
+  );
+};
+
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 14,
-  },
-  iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: COLORS.danger + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
   list: {
-    gap: 8,
+    gap: SPACING.sm + 2,
   },
   vehicleCard: {
+    backgroundColor: 'rgba(248, 113, 113, 0.04)',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(248, 113, 113, 0.1)',
+    overflow: 'hidden',
+  },
+  vehicleTouchable: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.danger + '08',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.danger + '20',
+    padding: SPACING.md,
   },
   vehicleLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING.md,
     flex: 1,
   },
   typeIcon: {
     width: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  vehicleInfo: {
+    flex: 1,
   },
   plate: {
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.text,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   location: {
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginTop: 2,
+    letterSpacing: 0.1,
   },
-  reasonBadge: {
+  reasonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.danger + '15',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    maxWidth: 120,
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
   },
   reasonText: {
-    fontSize: 10,
+    fontSize: 11,
     color: COLORS.danger,
-    fontWeight: '600',
+    fontWeight: '500',
+    flex: 1,
   },
   expandBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    marginTop: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: COLORS.background,
+    gap: SPACING.xs,
+    marginTop: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
   },
   expandText: {
     fontSize: 13,
@@ -215,19 +246,19 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   footer: {
-    marginTop: 12,
+    marginTop: SPACING.md,
     alignItems: 'flex-end',
   },
   exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: COLORS.danger + '12',
+    gap: SPACING.xs + 1,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.dangerGlow,
     borderWidth: 1,
-    borderColor: COLORS.danger + '30',
+    borderColor: 'rgba(248, 113, 113, 0.15)',
   },
   exportBtnText: {
     fontSize: 12,

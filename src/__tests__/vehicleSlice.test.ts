@@ -37,12 +37,13 @@ const initialState = {
 
 const mockVehicle: Vehicle = {
   id: '1',
+  license_id: 'lic-1',
   license_plate: 'ABC-123',
   vehicle_type: 'car',
   tower: 1,
   floor: 1,
   apartment: 1,
-  apartment_code: 101,
+  apartment_code: '101',
   owner_name: 'Test Owner',
   images: [],
   is_restricted: false,

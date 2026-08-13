@@ -128,6 +128,7 @@ describe('vehicleRepository', () => {
       await vehicleRepository.create({
         tower: 1, floor: 2, apartment: 3,
         vehicle_type: 'car', license_plate: 'ABC-123', owner_name: 'Test',
+        is_restricted: false, restriction_reason: '',
       });
 
       expect(mockFrom).toHaveBeenCalledWith('vehicles');

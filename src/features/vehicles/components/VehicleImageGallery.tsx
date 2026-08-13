@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     width: 160,
     height: 100,
     borderRadius: 12,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: COLORS.surfaceHighlight,
   },
   deleteBadge: {
     position: 'absolute',

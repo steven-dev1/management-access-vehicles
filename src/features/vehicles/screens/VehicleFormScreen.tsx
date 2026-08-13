@@ -341,7 +341,7 @@ export const VehicleFormScreen: React.FC = () => {
                   updateField('restriction_reason', '');
                 }
               }}
-              trackColor={{ false: COLORS.surfaceLight, true: COLORS.danger + '80' }}
+              trackColor={{ false: COLORS.surfaceHighlight, true: COLORS.danger + '80' }}
               thumbColor={formData.is_restricted ? COLORS.danger : COLORS.textSecondary}
             />
           </View>

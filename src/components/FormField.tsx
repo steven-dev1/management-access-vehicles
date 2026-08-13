@@ -100,7 +100,7 @@ export const FormButton: React.FC<FormButtonProps> = ({
   icon,
   fullWidth = true,
 }) => {
-  const bgColor = variant === 'primary' ? COLORS.primary : variant === 'danger' ? COLORS.danger : COLORS.surfaceLight;
+  const bgColor = variant === 'primary' ? COLORS.primary : variant === 'danger' ? COLORS.danger : COLORS.surfaceHighlight;
   const textColor = variant === 'secondary' ? COLORS.textSecondary : COLORS.text;
 
   return (

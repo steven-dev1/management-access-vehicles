@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ParkingAlert } from '../../../types';
-import { COLORS } from '../../../constants';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '../../../constants';
 import { parseTimestamp } from '../../../utils';
 
 export const ParkingAlertsCard: React.FC<{ alerts: ParkingAlert[] }> = ({
@@ -19,22 +19,15 @@ export const ParkingAlertsCard: React.FC<{ alerts: ParkingAlert[] }> = ({
 
   return (
     <View>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Ionicons name="time-outline" size={22} color={COLORS.warning} />
-        </View>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>{alerts.length}</Text>
-        </View>
-      </View>
-
       {alerts.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons
-            name="checkmark-circle-outline"
-            size={40}
-            color={COLORS.success}
-          />
+          <View style={styles.emptyIconContainer}>
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={36}
+              color={COLORS.success}
+            />
+          </View>
           <Text style={styles.emptyText}>
             No hay vehículos con estacionamiento prolongado
           </Text>
@@ -46,56 +39,11 @@ export const ParkingAlertsCard: React.FC<{ alerts: ParkingAlert[] }> = ({
           showsVerticalScrollIndicator={false}
         >
           {alerts.map((alert) => (
-            <View key={alert.vehicle_id} style={styles.alertCard}>
-              <View style={styles.alertTopRow}>
-                <View style={styles.vehicleInfo}>
-                  <Ionicons
-                    name={
-                      alert.vehicle_type === 'car'
-                        ? 'car-sport-outline'
-                        : 'bicycle-outline'
-                    }
-                    size={20}
-                    color={
-                      alert.vehicle_type === 'car'
-                        ? COLORS.car
-                        : COLORS.motorcycle
-                    }
-                  />
-                  <Text style={styles.plate}>{alert.license_plate}</Text>
-                </View>
-                <View style={styles.daysBadge}>
-                  <Text style={styles.daysText}>
-                    {alert.days_parked} días
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.ownerName}>{alert.owner_name}</Text>
-
-              <View style={styles.locationRow}>
-                <Ionicons
-                  name="business-outline"
-                  size={14}
-                  color={COLORS.textSecondary}
-                />
-                <Text style={styles.locationText}>
-                  Torre {alert.tower} · {alert.apartment_code}
-                </Text>
-              </View>
-
-              <View style={styles.dateRow}>
-                <Ionicons
-                  name="log-in-outline"
-                  size={14}
-                  color={COLORS.textSecondary}
-                />
-                <Text style={styles.dateLabel}>Última entrada</Text>
-                <Text style={styles.dateValue}>
-                  {formatDate(alert.last_entry)}
-                </Text>
-              </View>
-            </View>
+            <AlertItem
+              key={alert.vehicle_id}
+              alert={alert}
+              formatDate={formatDate}
+            />
           ))}
         </ScrollView>
       )}
@@ -103,66 +51,120 @@ export const ParkingAlertsCard: React.FC<{ alerts: ParkingAlert[] }> = ({
   );
 };
 
+interface AlertItemProps {
+  alert: ParkingAlert;
+  formatDate: (dateString: string) => string;
+}
+
+const AlertItem: React.FC<AlertItemProps> = ({ alert, formatDate }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  return (
+    <Animated.View
+      style={[styles.alertCard, { transform: [{ scale: scaleAnim }] }]}
+      onTouchStart={handlePressIn}
+      onTouchEnd={handlePressOut}
+    >
+      <View style={styles.alertTopRow}>
+        <View style={styles.vehicleInfo}>
+          <Ionicons
+            name={
+              alert.vehicle_type === 'car'
+                ? 'car-sport-outline'
+                : 'bicycle-outline'
+            }
+            size={18}
+            color={
+              alert.vehicle_type === 'car' ? COLORS.car : COLORS.motorcycle
+            }
+          />
+          <Text style={styles.plate}>{alert.license_plate}</Text>
+        </View>
+        <View style={styles.daysBadge}>
+          <Text style={styles.daysText}>{alert.days_parked}d</Text>
+        </View>
+      </View>
+
+      <Text style={styles.ownerName}>{alert.owner_name}</Text>
+
+      <View style={styles.locationRow}>
+        <Ionicons
+          name="business-outline"
+          size={13}
+          color={COLORS.textMuted}
+        />
+        <Text style={styles.locationText}>
+          Torre {alert.tower} · {alert.apartment_code}
+        </Text>
+      </View>
+
+      <View style={styles.dateRow}>
+        <Ionicons
+          name="log-in-outline"
+          size={13}
+          color={COLORS.textMuted}
+        />
+        <Text style={styles.dateLabel}>Última entrada</Text>
+        <Text style={styles.dateValue}>{formatDate(alert.last_entry)}</Text>
+      </View>
+    </Animated.View>
+  );
+};
+
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  countBadge: {
-    backgroundColor: COLORS.danger,
-    borderRadius: 12,
-    minWidth: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  countText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingVertical: SPACING.xxxl,
+    paddingHorizontal: SPACING.xl,
+    gap: SPACING.md,
+  },
+  emptyIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.xxl,
+    backgroundColor: COLORS.successGlow,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyText: {
     color: COLORS.textSecondary,
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+    letterSpacing: 0.1,
   },
   list: {
     maxHeight: 400,
   },
   listContent: {
-    padding: 12,
-    gap: 10,
+    gap: SPACING.sm + 2,
   },
   alertCard: {
-    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+    backgroundColor: 'rgba(248, 113, 113, 0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.15)',
-    borderRadius: 12,
-    padding: 14,
-    gap: 8,
+    borderColor: 'rgba(248, 113, 113, 0.1)',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.sm,
   },
   alertTopRow: {
     flexDirection: 'row',
@@ -172,51 +174,53 @@ const styles = StyleSheet.create({
   vehicleInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING.sm,
   },
   plate: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   daysBadge: {
     backgroundColor: COLORS.danger,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: SPACING.xs,
   },
   daysText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
+    letterSpacing: 0.2,
   },
   ownerName: {
-    fontSize: 14,
-    color: COLORS.text,
+    fontSize: 13,
+    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: SPACING.sm,
   },
   locationText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    letterSpacing: 0.1,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   dateLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 11,
+    color: COLORS.textMuted,
   },
   dateValue: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.textSecondary,
     fontWeight: '500',
   },

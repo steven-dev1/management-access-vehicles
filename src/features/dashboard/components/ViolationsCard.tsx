@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../../constants';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '../../../constants';
 import { ApartmentViolation } from '../../../types';
 import { vehicleRepository } from '../../../lib/repositories/vehicle.repository';
 
@@ -42,33 +42,16 @@ export const ViolationsCard: React.FC<ViolationsCardProps> = ({ violations }) =>
     <View>
       <View style={styles.list}>
         {violations.map((violation) => (
-          <View key={violation.apartment_code} style={styles.violationCard}>
-            <View style={styles.violationHeader}>
-              <Text style={styles.apartmentCode}>Torre {violation.tower} - {violation.apartment_code}</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{violation.vehicle_count} vehículos</Text>
-              </View>
-            </View>
-            <View style={styles.violationDetails}>
-              <View style={styles.detailItem}>
-                <Ionicons name="car" size={14} color={violation.car_count > 1 ? COLORS.danger : COLORS.textSecondary} />
-                <Text style={[styles.detailText, violation.car_count > 1 && styles.dangerText]}>
-                  {violation.car_count} auto{violation.car_count !== 1 ? 's' : ''}
-                </Text>
-              </View>
-              <View style={styles.detailItem}>
-                <Ionicons name="bicycle" size={14} color={violation.motorcycle_count > 1 ? COLORS.danger : COLORS.textSecondary} />
-                <Text style={[styles.detailText, violation.motorcycle_count > 1 && styles.dangerText]}>
-                  {violation.motorcycle_count} moto{violation.motorcycle_count !== 1 ? 's' : ''}
-                </Text>
-              </View>
-            </View>
-          </View>
+          <ViolationItem key={violation.apartment_code} violation={violation} />
         ))}
       </View>
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.exportBtn} onPress={handleExport} activeOpacity={0.7}>
-          <Ionicons name="document-text-outline" size={16} color={COLORS.warning} />
+        <TouchableOpacity
+          style={styles.exportBtn}
+          onPress={handleExport}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="document-text-outline" size={15} color={COLORS.warning} />
           <Text style={styles.exportBtnText}>Exportar</Text>
         </TouchableOpacity>
       </View>
@@ -76,79 +59,154 @@ export const ViolationsCard: React.FC<ViolationsCardProps> = ({ violations }) =>
   );
 };
 
+interface ViolationItemProps {
+  violation: ApartmentViolation;
+}
+
+const ViolationItem: React.FC<ViolationItemProps> = ({ violation }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  return (
+    <Animated.View
+      style={[styles.violationCard, { transform: [{ scale: scaleAnim }] }]}
+      onTouchStart={handlePressIn}
+      onTouchEnd={handlePressOut}
+    >
+      <View style={styles.violationHeader}>
+        <Text style={styles.apartmentCode}>
+          Torre {violation.tower} - {violation.apartment_code}
+        </Text>
+        <View style={styles.badge}>
+          <Ionicons name="warning" size={10} color={COLORS.textInverse} />
+          <Text style={styles.badgeText}>{violation.vehicle_count}</Text>
+        </View>
+      </View>
+      <View style={styles.violationDetails}>
+        <View style={styles.detailItem}>
+          <Ionicons
+            name="car"
+            size={13}
+            color={violation.car_count > 1 ? COLORS.danger : COLORS.textMuted}
+          />
+          <Text
+            style={[
+              styles.detailText,
+              violation.car_count > 1 && styles.dangerText,
+            ]}
+          >
+            {violation.car_count} auto{violation.car_count !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        <View style={styles.detailItem}>
+          <Ionicons
+            name="bicycle"
+            size={13}
+            color={violation.motorcycle_count > 1 ? COLORS.danger : COLORS.textMuted}
+          />
+          <Text
+            style={[
+              styles.detailText,
+              violation.motorcycle_count > 1 && styles.dangerText,
+            ]}
+          >
+            {violation.motorcycle_count} moto{violation.motorcycle_count !== 1 ? 's' : ''}
+          </Text>
+        </View>
+      </View>
+    </Animated.View>
+  );
+};
+
 const styles = StyleSheet.create({
-  footer: {
-    marginTop: 12,
-    alignItems: 'flex-end',
-  },
-  exportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: COLORS.warning + '12',
-    borderWidth: 1,
-    borderColor: COLORS.warning + '30',
-  },
-  exportBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.warning,
-  },
   list: {
-    gap: 8,
+    gap: SPACING.sm + 2,
   },
   violationCard: {
-    backgroundColor: COLORS.warning + '10',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: 'rgba(251, 191, 36, 0.06)',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.warning + '30',
+    borderColor: 'rgba(251, 191, 36, 0.12)',
   },
   violationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   apartmentCode: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
-  },
-  ownerNames: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: 8,
+    letterSpacing: 0.1,
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     backgroundColor: COLORS.warning,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.sm,
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#000',
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textInverse,
   },
   violationDetails: {
     flexDirection: 'row',
-    gap: 16,
+    gap: SPACING.xl,
   },
   detailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: SPACING.xs,
   },
   detailText: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   dangerText: {
     color: COLORS.danger,
     fontWeight: '600',
+  },
+  footer: {
+    marginTop: SPACING.md,
+    alignItems: 'flex-end',
+  },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs + 1,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.warningGlow,
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.2)',
+  },
+  exportBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.warning,
   },
 });

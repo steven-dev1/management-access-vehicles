@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { COLORS, TOWERS } from '../../../constants';
 import { visitorRepository } from '../../../lib/repositories/visitor.repository';
+import { accessLogRepository } from '../../../lib/repositories/accessLog.repository';
 import { useHaptics } from '../../../hooks/useHaptics';
 
 const FLOORS = [1, 2, 3, 4, 5];
@@ -65,6 +66,17 @@ export const VisitorFormScreen: React.FC = () => {
 
     setSaving(true);
     try {
+      const existingVehicle = await accessLogRepository.getVehicleByPlate(plate.toUpperCase().trim());
+      if (existingVehicle) {
+        Alert.alert(
+          'Placa Registrada',
+          `La placa ${plate.toUpperCase().trim()} ya está registrada como vehículo del conjunto (${existingVehicle.owner_name} - Torre ${existingVehicle.tower}).\n\nNo se puede registrar como visitante.`,
+          [{ text: 'OK' }]
+        );
+        setSaving(false);
+        return;
+      }
+
       await visitorRepository.create({
         visitor_plate: plate.toUpperCase().trim(),
         visitor_name: name.trim(),

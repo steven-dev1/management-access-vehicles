@@ -1,11 +1,25 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, Share, SectionList, Platform } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  RefreshControl,
+  Share,
+  SectionList,
+  Platform,
+  Animated,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { COLORS } from '../../../constants';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '../../../constants';
 import { accessLogRepository } from '../../../lib/repositories/accessLog.repository';
 import { useVoiceCommand, isExpoGoEnvironment } from '../../../hooks/useVoiceCommand';
 import { Vehicle, AccessLog } from '../../../types';
@@ -45,6 +59,9 @@ export const AccessControlScreen: React.FC = () => {
   const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
     loadRecentLogs();
     isVoiceAvailable().then(setVoiceSupported);
@@ -53,7 +70,31 @@ export const AccessControlScreen: React.FC = () => {
     };
   }, []);
 
-  useRealtimeAccessLogs(() => { loadRecentLogs(); });
+  useEffect(() => {
+    if (listening) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.15, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [listening, pulseAnim]);
+
+  const onScalePress = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.95, duration: 80, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+  }, [scaleAnim]);
+
+  useRealtimeAccessLogs(() => {
+    loadRecentLogs();
+  });
 
   const loadRecentLogs = async () => {
     try {
@@ -83,32 +124,36 @@ export const AccessControlScreen: React.FC = () => {
     try {
       const plate = filterPlate.toUpperCase().trim();
       const startDate = filterDateFrom ? filterDateFrom.toISOString() : undefined;
-      const endDate = filterDateTo ? new Date(filterDateTo.getTime() + 86400000).toISOString() : undefined;
+      const endDate = filterDateTo
+        ? new Date(filterDateTo.getTime() + 86400000).toISOString()
+        : undefined;
 
       if (plate) {
-        const allFilteredLogs = historySections.flatMap(s => s.data);
+        const allFilteredLogs = historySections.flatMap((s) => s.data);
 
         if (format === 'csv') {
           const header = 'Fecha,Hora,Placa,Tipo,Torre,Apartamento,Propietario,Tipo Accion\n';
-          const rows = allFilteredLogs.map((log: any) => {
-            const date = parseTimestamp(log.timestamp);
-            const v = log.vehicle;
-            return `${date.toLocaleDateString('es-ES')},${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })},${v?.license_plate || ''},${v?.vehicle_type === 'car' ? 'Carro' : 'Moto'},${v?.tower || ''},${v?.apartment_code || ''},${v?.owner_name || ''},${log.access_type === 'entry' ? 'Entrada' : 'Salida'}`;
-          }).join('\n');
+          const rows = allFilteredLogs
+            .map((log: any) => {
+              const date = parseTimestamp(log.timestamp);
+              const v = log.vehicle;
+              return `${date.toLocaleDateString('es-ES')},${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })},${v?.license_plate || ''},${v?.vehicle_type === 'car' ? 'Carro' : 'Moto'},${v?.tower || ''},${v?.apartment_code || ''},${v?.owner_name || ''},${log.access_type === 'entry' ? 'Entrada' : 'Salida'}`;
+            })
+            .join('\n');
           await Share.share({ message: header + rows, title: 'Historial de accesos' });
         } else if (format === 'excel') {
           const rows = allFilteredLogs.map((log: any) => {
             const date = parseTimestamp(log.timestamp);
             const v = log.vehicle;
             return {
-              'Fecha': date.toLocaleDateString('es-ES'),
-              'Hora': date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-              'Placa': v?.license_plate || '',
-              'Tipo': v?.vehicle_type === 'car' ? 'Carro' : 'Moto',
-              'Torre': v?.tower || '',
-              'Apartamento': v?.apartment_code || '',
-              'Propietario': v?.owner_name || '',
-              'Accion': log.access_type === 'entry' ? 'Entrada' : 'Salida',
+              Fecha: date.toLocaleDateString('es-ES'),
+              Hora: date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+              Placa: v?.license_plate || '',
+              Tipo: v?.vehicle_type === 'car' ? 'Carro' : 'Moto',
+              Torre: v?.tower || '',
+              Apartamento: v?.apartment_code || '',
+              Propietario: v?.owner_name || '',
+              Accion: log.access_type === 'entry' ? 'Entrada' : 'Salida',
             };
           });
           const ws = XLSX.utils.json_to_sheet(rows);
@@ -116,18 +161,28 @@ export const AccessControlScreen: React.FC = () => {
           XLSX.utils.book_append_sheet(wb, ws, 'Historial');
           const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
           const uri = `${FileSystem.cacheDirectory}historial_accesos.xlsx`;
-          await FileSystem.writeAsStringAsync(uri, excelBuffer, { encoding: FileSystem.EncodingType.Base64 });
-          await Sharing.shareAsync(uri, { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dialogTitle: 'Exportar historial' });
+          await FileSystem.writeAsStringAsync(uri, excelBuffer, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            dialogTitle: 'Exportar historial',
+          });
         } else {
-          const rows = allFilteredLogs.map((log: any) => {
-            const date = parseTimestamp(log.timestamp);
-            const v = log.vehicle;
-            const isEntry = log.access_type === 'entry';
-            return `<tr><td>${date.toLocaleDateString('es-ES')}</td><td>${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</td><td><strong>${v?.license_plate || ''}</strong></td><td>${v?.vehicle_type === 'car' ? 'Carro' : 'Moto'}</td><td>Torre ${v?.tower || ''}</td><td>${v?.apartment_code || ''}</td><td>${v?.owner_name || ''}</td><td style="color:${isEntry ? '#10B981' : '#EF4444'};font-weight:bold;">${isEntry ? 'Entrada' : 'Salida'}</td></tr>`;
-          }).join('');
-          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#1a1a1a;color:white}tr:nth-child(even){background:#f5f5f5}</style></head><body><h2>Historial de Accesos</h2><table><thead><tr><th>Fecha</th><th>Hora</th><th>Placa</th><th>Tipo</th><th>Torre</th><th>Apto</th><th>Propietario</th><th>Accion</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+          const rows = allFilteredLogs
+            .map((log: any) => {
+              const date = parseTimestamp(log.timestamp);
+              const v = log.vehicle;
+              const isEntry = log.access_type === 'entry';
+              return `<tr><td>${date.toLocaleDateString('es-ES')}</td><td>${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</td><td><strong>${v?.license_plate || ''}</strong></td><td>${v?.vehicle_type === 'car' ? 'Carro' : 'Moto'}</td><td>Torre ${v?.tower || ''}</td><td>${v?.apartment_code || ''}</td><td>${v?.owner_name || ''}</td><td style="color:${isEntry ? '#10B981' : '#EF4444'};font-weight:bold;">${isEntry ? 'Entrada' : 'Salida'}</td></tr>`;
+            })
+            .join('');
+          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:sans-serif;padding:20px;background:#09090B;color:#FAFAFA}table{width:100%;border-collapse:collapse}th,td{border:1px solid #27272A;padding:8px;text-align:left}th{background:#18181B;color:#FAFAFA}tr:nth-child(even){background:#18181B}</style></head><body><h2>Historial de Accesos</h2><table><thead><tr><th>Fecha</th><th>Hora</th><th>Placa</th><th>Tipo</th><th>Torre</th><th>Apto</th><th>Propietario</th><th>Accion</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
           const { uri } = await Print.printToFileAsync({ html });
-          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Exportar historial' });
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Exportar historial',
+          });
         }
       } else {
         if (format === 'csv') {
@@ -160,7 +215,7 @@ export const AccessControlScreen: React.FC = () => {
   const applyHistoryFilters = useCallback(() => {
     const plate = filterPlate.toUpperCase().trim();
 
-    const filtered = allHistoryLogs.filter(log => {
+    const filtered = allHistoryLogs.filter((log) => {
       if (plate && !(log.vehicle?.license_plate || '').toUpperCase().includes(plate)) return false;
       const logDate = parseTimestamp(log.timestamp);
       if (filterDateFrom && logDate < filterDateFrom) return false;
@@ -175,7 +230,12 @@ export const AccessControlScreen: React.FC = () => {
     const grouped = new Map<string, AccessLog[]>();
     for (const log of filtered) {
       const date = parseTimestamp(log.timestamp);
-      const key = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const key = date.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key)!.push(log);
     }
@@ -220,17 +280,21 @@ export const AccessControlScreen: React.FC = () => {
       updateVoiceText(`"${result.rawText}"`);
 
       if (!result.plate) {
-        Alert.alert('Placa no detectada', `No se pudo detectar la placa en: "${result.rawText}"\n\nIntenta de nuevo hablando más claro.`, [
-          { text: 'OK' },
-        ]);
+        Alert.alert(
+          'Placa no detectada',
+          `No se pudo detectar la placa en: "${result.rawText}"\n\nIntenta de nuevo hablando más claro.`,
+          [{ text: 'OK' }]
+        );
         setTimeout(() => updateVoiceText(''), 3000);
         return;
       }
 
       if (!result.action) {
-        Alert.alert('Acción no detectada', `No se detectó si es entrada o salida.\n\nPlaca detectada: ${result.plate}\n\nIntenta de nuevo hablando más claro.`, [
-          { text: 'OK' },
-        ]);
+        Alert.alert(
+          'Acción no detectada',
+          `No se detectó si es entrada o salida.\n\nPlaca detectada: ${result.plate}\n\nIntenta de nuevo hablando más claro.`,
+          [{ text: 'OK' }]
+        );
         setTimeout(() => updateVoiceText(''), 3000);
         return;
       }
@@ -238,9 +302,11 @@ export const AccessControlScreen: React.FC = () => {
       const vehicle = await accessLogRepository.getVehicleByPlate(result.plate);
 
       if (!vehicle) {
-        Alert.alert('Vehículo no encontrado', `Placa: ${result.plate}\n\nNo se encontró en el sistema.`, [
-          { text: 'OK' },
-        ]);
+        Alert.alert(
+          'Vehículo no encontrado',
+          `Placa: ${result.plate}\n\nNo se encontró en el sistema.`,
+          [{ text: 'OK' }]
+        );
         setTimeout(() => updateVoiceText(''), 3000);
         return;
       }
@@ -290,7 +356,7 @@ export const AccessControlScreen: React.FC = () => {
       await notificationSuccess();
       const label = accessType === 'entry' ? 'Entrada' : 'Salida';
       Alert.alert(`${label} registrada`, `${vehicle.license_plate} - Torre ${vehicle.tower}`, [
-        { text: 'OK' }
+        { text: 'OK' },
       ]);
       setSelectedVehicle(null);
       setSearchQuery('');
@@ -314,81 +380,166 @@ export const AccessControlScreen: React.FC = () => {
     return dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
   };
 
+  const hasActiveFilters = filterPlate || filterDateFrom || filterDateTo;
+
+  const clearAllFilters = () => {
+    setFilterPlate('');
+    setFilterDateFrom(null);
+    setFilterDateTo(null);
+  };
+
+  const renderLogCard = (log: AccessLog) => (
+    <TouchableOpacity
+      key={log.id}
+      style={styles.logCard}
+      onPress={() => {
+        onScalePress();
+        log.vehicle && router.push(`/vehicle/${log.vehicle.id}`);
+      }}
+      activeOpacity={0.7}
+    >
+      <View
+        style={[
+          styles.logIcon,
+          {
+            backgroundColor:
+              log.access_type === 'entry'
+                ? COLORS.successGlow
+                : COLORS.dangerGlow,
+          },
+        ]}
+      >
+        <Ionicons
+          name={log.access_type === 'entry' ? 'log-in' : 'log-out'}
+          size={16}
+          color={log.access_type === 'entry' ? COLORS.success : COLORS.danger}
+        />
+      </View>
+      <View style={styles.logInfo}>
+        <View style={styles.logPlateRow}>
+          <Ionicons
+            name={log.vehicle?.vehicle_type === 'motorcycle' ? 'bicycle' : 'car'}
+            size={14}
+            color={getVehicleTypeColor(log.vehicle?.vehicle_type || 'car')}
+          />
+          <Text style={styles.logPlate}>{log.vehicle?.license_plate || 'N/A'}</Text>
+          <Text
+            style={[
+              styles.logAction,
+              { color: log.access_type === 'entry' ? COLORS.success : COLORS.danger },
+            ]}
+          >
+            {log.access_type === 'entry' ? 'Entrada' : 'Salida'}
+          </Text>
+          {log.vehicle?.is_restricted && (
+            <View style={styles.restrictedBadge}>
+              <Ionicons name="warning" size={9} color={COLORS.textInverse} />
+              <Text style={styles.restrictedBadgeText}>RESTRINGIDO</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.logOwner}>{log.vehicle?.owner_name || ''}</Text>
+        <Text style={styles.logDetails}>
+          {log.vehicle ? `Torre ${log.vehicle.tower} - ${log.vehicle.apartment_code}` : ''} ·{' '}
+          {formatRelativeTime(log.timestamp)}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  // ── Full History View ──────────────────────────────────────────────────
   if (showFullHistory) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
+
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setShowFullHistory(false)} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+          <TouchableOpacity
+            onPress={() => setShowFullHistory(false)}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Historial completo</Text>
-          <TouchableOpacity onPress={handleExportOptions} style={styles.exportButton}>
-            <Ionicons name="download-outline" size={16} color="#FFF" />
-            <Text style={styles.exportButtonText}>Exportar</Text>
+          <TouchableOpacity
+            onPress={handleExportOptions}
+            style={styles.exportBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="download-outline" size={16} color={COLORS.textSecondary} />
+            <Text style={styles.exportBtnText}>Exportar</Text>
           </TouchableOpacity>
         </View>
 
         {loadingHistory ? (
-          <View style={styles.loadingCenter}>
+          <View style={styles.centerContent}>
             <ActivityIndicator color={COLORS.primary} size="large" />
           </View>
         ) : (
           <>
+            {/* Filter bar */}
             <View style={styles.filterBar}>
               <View style={styles.filterRow}>
-                <View style={[styles.filterInput, { flex: 1 }]}>
-                  <Ionicons name="search" size={16} color={COLORS.textSecondary} />
+                <View style={styles.filterInput}>
+                  <Ionicons name="search" size={14} color={COLORS.textMuted} />
                   <TextInput
                     style={styles.filterInputText}
-                    placeholder="Buscar por placa"
-                    placeholderTextColor={COLORS.textSecondary}
+                    placeholder="Placa"
+                    placeholderTextColor={COLORS.textMuted}
                     value={filterPlate}
                     onChangeText={setFilterPlate}
                     autoCapitalize="characters"
                   />
                   {filterPlate.length > 0 && (
-                    <TouchableOpacity onPress={() => setFilterPlate('')}>
-                      <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
+                    <TouchableOpacity onPress={() => setFilterPlate('')} hitSlop={8}>
+                      <Ionicons name="close-circle" size={14} color={COLORS.textMuted} />
                     </TouchableOpacity>
                   )}
                 </View>
+                <TouchableOpacity
+                  style={[styles.filterDateBtn, filterDateFrom && styles.filterDateActive]}
+                  onPress={() => setShowPickerFrom(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="calendar-outline" size={13} color={filterDateFrom ? COLORS.primary : COLORS.textMuted} />
+                  <Text
+                    style={[
+                      styles.filterDateText,
+                      { color: filterDateFrom ? COLORS.primary : COLORS.textMuted },
+                    ]}
+                  >
+                    {filterDateFrom
+                      ? filterDateFrom.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
+                      : 'Desde'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterDateBtn, filterDateTo && styles.filterDateActive]}
+                  onPress={() => setShowPickerTo(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="calendar-outline" size={13} color={filterDateTo ? COLORS.primary : COLORS.textMuted} />
+                  <Text
+                    style={[
+                      styles.filterDateText,
+                      { color: filterDateTo ? COLORS.primary : COLORS.textMuted },
+                    ]}
+                  >
+                    {filterDateTo
+                      ? filterDateTo.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
+                      : 'Hasta'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <View style={styles.filterRow}>
-                <View style={[styles.filterInput, { flex: 1 }]}>
-                  <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
-                  <TouchableOpacity style={styles.filterDateBtn} onPress={() => setShowPickerFrom(true)}>
-                    <Text style={[styles.filterInputText, !filterDateFrom && { color: COLORS.textSecondary }]}>
-                      {filterDateFrom ? filterDateFrom.toLocaleDateString('es-ES') : 'Desde'}
-                    </Text>
-                  </TouchableOpacity>
-                  {filterDateFrom && (
-                    <TouchableOpacity onPress={() => setFilterDateFrom(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <View style={[styles.filterInput, { flex: 1 }]}>
-                  <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
-                  <TouchableOpacity style={styles.filterDateBtn} onPress={() => setShowPickerTo(true)}>
-                    <Text style={[styles.filterInputText, !filterDateTo && { color: COLORS.textSecondary }]}>
-                      {filterDateTo ? filterDateTo.toLocaleDateString('es-ES') : 'Hasta'}
-                    </Text>
-                  </TouchableOpacity>
-                  {filterDateTo && (
-                    <TouchableOpacity onPress={() => setFilterDateTo(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-              {(filterPlate || filterDateFrom || filterDateTo) && (
-                <TouchableOpacity style={styles.clearFiltersBtn} onPress={() => { setFilterPlate(''); setFilterDateFrom(null); setFilterDateTo(null); }}>
-                  <Ionicons name="funnel" size={14} color={COLORS.primary} />
-                  <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+              {hasActiveFilters && (
+                <TouchableOpacity style={styles.clearFiltersBtn} onPress={clearAllFilters} activeOpacity={0.7}>
+                  <Ionicons name="close-circle" size={12} color={COLORS.primary} />
+                  <Text style={styles.clearFiltersText}>Limpiar</Text>
                 </TouchableOpacity>
               )}
             </View>
+
             {showPickerFrom && (
               <DateTimePicker
                 value={filterDateFrom || new Date()}
@@ -420,78 +571,47 @@ export const AccessControlScreen: React.FC = () => {
                 themeVariant="dark"
               />
             )}
+
             <SectionList
-            sections={historySections}
-            keyExtractor={(item) => item.id}
-            stickySectionHeadersEnabled={true}
-            renderSectionHeader={({ section }) => (
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionHeaderText}>{formatDateHeader(section.title)}</Text>
-                <View style={styles.sectionBadge}>
-                  <Text style={styles.sectionBadgeText}>{section.data.length}</Text>
-                </View>
-              </View>
-            )}
-            renderItem={({ item: log }) => (
-              <TouchableOpacity
-                style={styles.logCard}
-                onPress={() => log.vehicle && router.push(`/vehicle/${log.vehicle.id}`)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.logIcon, { backgroundColor: log.access_type === 'entry' ? COLORS.success + '20' : COLORS.danger + '20' }]}>
-                  <Ionicons
-                    name={log.access_type === 'entry' ? 'log-in' : 'log-out'}
-                    size={16}
-                    color={log.access_type === 'entry' ? COLORS.success : COLORS.danger}
-                  />
-                </View>
-                <View style={styles.logInfo}>
-                  <View style={styles.logPlateRow}>
-                    <Ionicons
-                      name={log.vehicle?.vehicle_type === 'motorcycle' ? 'bicycle' : 'car'}
-                      size={14}
-                      color={getVehicleTypeColor(log.vehicle?.vehicle_type || 'car')}
-                    />
-                    <Text style={styles.logPlate}>{log.vehicle?.license_plate || 'N/A'}</Text>
-                    <Text style={[styles.logAction, { color: log.access_type === 'entry' ? COLORS.success : COLORS.danger }]}>
-                      {log.access_type === 'entry' ? 'Entrada' : 'Salida'}
-                    </Text>
-                    {log.vehicle?.is_restricted && (
-                      <View style={styles.restrictedBadge}>
-                        <Ionicons name="warning" size={10} color="#FFF" />
-                        <Text style={styles.restrictedBadgeText}>RESTRINGIDO</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.logOwner}>{log.vehicle?.owner_name || ''}</Text>
-                  <Text style={styles.logDetails}>
-                    {log.vehicle ? `Torre ${log.vehicle.tower} - ${log.vehicle.apartment_code}` : ''} • {parseTimestamp(log.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+              sections={historySections}
+              keyExtractor={(item) => item.id}
+              stickySectionHeadersEnabled
+              renderSectionHeader={({ section }) => (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderText}>
+                    {formatDateHeader(section.title)}
                   </Text>
+                  <View style={styles.sectionBadge}>
+                    <Text style={styles.sectionBadgeText}>{section.data.length}</Text>
+                  </View>
                 </View>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={{ paddingBottom: 32 }}
-            renderSectionFooter={() => <View style={{ height: 16 }} />}
-            ListEmptyComponent={
-              <View style={styles.loadingCenter}>
-                <Ionicons name="search" size={32} color={COLORS.textSecondary} />
-                <Text style={styles.emptyText}>Sin resultados</Text>
-              </View>
-            }
-          />
+              )}
+              renderItem={({ item: log }) => renderLogCard(log)}
+              contentContainerStyle={styles.listContent}
+              renderSectionFooter={() => <View style={{ height: SPACING.md }} />}
+              ListEmptyComponent={
+                <View style={styles.centerContent}>
+                  <Ionicons name="search-outline" size={36} color={COLORS.textMuted} />
+                  <Text style={styles.emptyText}>Sin resultados</Text>
+                </View>
+              }
+            />
           </>
         )}
       </SafeAreaView>
     );
   }
 
+  // ── Main View ──────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="shield-checkmark" size={22} color={COLORS.primary} />
+          <View style={styles.headerIconWrap}>
+            <Ionicons name="shield-checkmark" size={18} color={COLORS.primary} />
+          </View>
           <Text style={styles.headerTitle}>Control de Acceso</Text>
         </View>
       </View>
@@ -501,29 +621,35 @@ export const AccessControlScreen: React.FC = () => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
         }
+        showsVerticalScrollIndicator={false}
       >
+        {/* Voice Section */}
         <View style={styles.voiceSection}>
           {voiceSupported !== false ? (
             <TouchableOpacity
               style={[styles.voiceButton, listening && styles.voiceButtonActive]}
               onPress={handleVoiceCommand}
               disabled={listening}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
               {listening ? (
                 <View style={styles.voiceRecording}>
-                  <View style={styles.pulseRing} />
-                  <View style={styles.pulseRingInner} />
+                  <Animated.View
+                    style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]}
+                  />
+                  <Animated.View
+                    style={[styles.pulseRingInner, { transform: [{ scale: pulseAnim }] }]}
+                  />
                   <View style={styles.micCircleActive}>
-                    <Ionicons name="mic" size={28} color="#FFF" />
+                    <Ionicons name="mic" size={26} color={COLORS.textInverse} />
                   </View>
-                  <Text style={styles.voiceRecordingText}>Escuchando...</Text>
+                  <Text style={styles.voiceRecordingText}>Escuchando…</Text>
                   <Text style={styles.voiceRecordingHint}>Di la placa y la acción</Text>
                 </View>
               ) : (
                 <View style={styles.voiceIdle}>
                   <View style={styles.micCircle}>
-                    <Ionicons name="mic" size={28} color={COLORS.primary} />
+                    <Ionicons name="mic" size={26} color={COLORS.primary} />
                   </View>
                   <Text style={styles.voiceIdleText}>Activar voz</Text>
                   <Text style={styles.voiceIdleHint}>Di la placa y la acción</Text>
@@ -532,7 +658,7 @@ export const AccessControlScreen: React.FC = () => {
             </TouchableOpacity>
           ) : (
             <View style={styles.voiceUnavailable}>
-              <Ionicons name="mic-off" size={18} color={COLORS.textSecondary} />
+              <Ionicons name="mic-off" size={16} color={COLORS.textMuted} />
               <Text style={styles.voiceUnavailableText}>
                 Comando de voz no disponible en este dispositivo
               </Text>
@@ -541,96 +667,122 @@ export const AccessControlScreen: React.FC = () => {
 
           {voiceText && !listening && (
             <View style={styles.voiceStatus}>
-              <Ionicons name="checkmark-circle" size={16} color={COLORS.primary} />
-              <Text style={styles.voiceStatusText} numberOfLines={2}>{voiceText}</Text>
+              <Ionicons name="checkmark-circle" size={14} color={COLORS.primary} />
+              <Text style={styles.voiceStatusText} numberOfLines={2}>
+                {voiceText}
+              </Text>
             </View>
           )}
         </View>
 
+        {/* Search Section */}
         <View style={styles.searchSection}>
-          <Text style={styles.sectionTitle}>Buscar vehículo</Text>
+          <Text style={styles.sectionLabel}>Buscar vehículo</Text>
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color={COLORS.textSecondary} />
+            <Ionicons name="search" size={18} color={COLORS.textMuted} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Buscar por placa..."
-              placeholderTextColor={COLORS.textSecondary}
+              placeholder="Buscar por placa…"
+              placeholderTextColor={COLORS.textMuted}
               value={searchQuery}
               onChangeText={handleSearch}
               autoCapitalize="characters"
             />
             {searchQuery ? (
-              <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); setSelectedVehicle(null); }}>
-                <Ionicons name="close-circle" size={20} color={COLORS.textSecondary} />
+              <TouchableOpacity
+                onPress={() => {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                  setSelectedVehicle(null);
+                }}
+                hitSlop={8}
+              >
+                <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
               </TouchableOpacity>
             ) : null}
           </View>
         </View>
 
+        {/* Search Results */}
         {searchResults.length > 0 && (
           <View style={styles.resultsSection}>
-            <Text style={styles.sectionTitle}>Resultados</Text>
+            <Text style={styles.sectionLabel}>Resultados</Text>
             {searchResults.map((vehicle) => (
               <TouchableOpacity
                 key={vehicle.id}
                 style={styles.resultCard}
                 onPress={() => setSelectedVehicle(vehicle)}
+                activeOpacity={0.7}
               >
                 <View style={styles.resultInfo}>
                   <Text style={styles.resultPlate}>{vehicle.license_plate}</Text>
-                  <Text style={styles.resultDetails}>Torre {vehicle.tower} - {vehicle.apartment_code} • {vehicle.owner_name}</Text>
+                  <Text style={styles.resultDetails}>
+                    Torre {vehicle.tower} - {vehicle.apartment_code} · {vehicle.owner_name}
+                  </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
               </TouchableOpacity>
             ))}
           </View>
         )}
 
+        {/* Selected Vehicle */}
         {selectedVehicle && (
           <View style={styles.selectedSection}>
-            <Text style={styles.sectionTitle}>Vehículo seleccionado</Text>
+            <Text style={styles.sectionLabel}>Vehículo seleccionado</Text>
             <View style={styles.selectedCard}>
               <View style={styles.selectedHeader}>
-                <View style={[styles.selectedType, { backgroundColor: getVehicleTypeColor(selectedVehicle.vehicle_type) + '20' }]}>
+                <View
+                  style={[
+                    styles.selectedType,
+                    {
+                      backgroundColor: getVehicleTypeColor(selectedVehicle.vehicle_type) + '18',
+                    },
+                  ]}
+                >
                   <Ionicons
                     name={selectedVehicle.vehicle_type === 'car' ? 'car' : 'bicycle'}
-                    size={24}
+                    size={22}
                     color={getVehicleTypeColor(selectedVehicle.vehicle_type)}
                   />
                 </View>
-                <View>
+                <View style={styles.selectedTextInfo}>
                   <Text style={styles.selectedPlate}>{selectedVehicle.license_plate}</Text>
                   <Text style={styles.selectedOwner}>{selectedVehicle.owner_name}</Text>
                 </View>
               </View>
-              <Text style={styles.selectedLocation}>Torre {selectedVehicle.tower} - {selectedVehicle.apartment_code}</Text>
+              <Text style={styles.selectedLocation}>
+                Torre {selectedVehicle.tower} · {selectedVehicle.apartment_code}
+              </Text>
 
               <View style={styles.accessButtons}>
                 <TouchableOpacity
-                  style={[styles.accessButton, styles.entryButton]}
+                  style={[styles.accessBtn, styles.entryBtn]}
                   onPress={() => handleLogAccess(selectedVehicle, 'entry')}
                   disabled={loading}
+                  activeOpacity={0.8}
                 >
                   {loading ? (
-                    <ActivityIndicator color={COLORS.text} />
+                    <ActivityIndicator color={COLORS.text} size="small" />
                   ) : (
                     <>
-                      <Ionicons name="log-in" size={20} color={COLORS.text} />
-                      <Text style={styles.accessButtonText}>Entrada</Text>
+                      <Ionicons name="log-in" size={18} color={COLORS.text} />
+                      <Text style={styles.accessBtnText}>Entrada</Text>
                     </>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.accessButton, styles.exitButton]}
+                  style={[styles.accessBtn, styles.exitBtn]}
                   onPress={() => handleLogAccess(selectedVehicle, 'exit')}
                   disabled={loading}
+                  activeOpacity={0.8}
                 >
                   {loading ? (
-                    <ActivityIndicator color={COLORS.text} />
+                    <ActivityIndicator color={COLORS.text} size="small" />
                   ) : (
                     <>
-                      <Ionicons name="log-out" size={20} color={COLORS.text} />
-                      <Text style={styles.accessButtonText}>Salida</Text>
+                      <Ionicons name="log-out" size={18} color={COLORS.text} />
+                      <Text style={styles.accessBtnText}>Salida</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -639,65 +791,22 @@ export const AccessControlScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Recent Activity */}
         <View style={styles.recentSection}>
           <View style={styles.recentHeader}>
-            <Text style={styles.sectionTitle}>Actividad reciente</Text>
-            {recentLogs.length > 0 && (
-              <TouchableOpacity onPress={handleExportOptions} style={styles.exportButton}>
-                <Ionicons name="download-outline" size={16} color="#FFF" />
-                <Text style={styles.exportButtonText}>Exportar</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={styles.sectionLabel}>Actividad reciente</Text>
           </View>
           {recentLogs.length === 0 ? (
             <View style={styles.emptyRecent}>
-              <Ionicons name="time" size={32} color={COLORS.textSecondary} />
+              <Ionicons name="time-outline" size={32} color={COLORS.textMuted} />
               <Text style={styles.emptyText}>Sin registros recientes</Text>
             </View>
           ) : (
             <>
-              {recentLogs.map((log) => (
-                <TouchableOpacity
-                  key={log.id}
-                  style={styles.logCard}
-                  onPress={() => log.vehicle && router.push(`/vehicle/${log.vehicle.id}`)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.logIcon, { backgroundColor: log.access_type === 'entry' ? COLORS.success + '20' : COLORS.danger + '20' }]}>
-                    <Ionicons
-                      name={log.access_type === 'entry' ? 'log-in' : 'log-out'}
-                      size={16}
-                      color={log.access_type === 'entry' ? COLORS.success : COLORS.danger}
-                    />
-                  </View>
-                  <View style={styles.logInfo}>
-                    <View style={styles.logPlateRow}>
-                      <Ionicons
-                        name={log.vehicle?.vehicle_type === 'motorcycle' ? 'bicycle' : 'car'}
-                        size={14}
-                        color={getVehicleTypeColor(log.vehicle?.vehicle_type || 'car')}
-                      />
-                      <Text style={styles.logPlate}>{log.vehicle?.license_plate || 'N/A'}</Text>
-                      <Text style={[styles.logAction, { color: log.access_type === 'entry' ? COLORS.success : COLORS.danger }]}>
-                        {log.access_type === 'entry' ? 'Entrada' : 'Salida'}
-                      </Text>
-                      {log.vehicle?.is_restricted && (
-                        <View style={styles.restrictedBadge}>
-                          <Ionicons name="warning" size={10} color="#FFF" />
-                          <Text style={styles.restrictedBadgeText}>RESTRINGIDO</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.logOwner}>{log.vehicle?.owner_name || ''}</Text>
-                    <Text style={styles.logDetails}>
-                      {log.vehicle ? `Torre ${log.vehicle.tower} - ${log.vehicle.apartment_code}` : ''} • {formatRelativeTime(log.timestamp)}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+              {recentLogs.map((log) => renderLogCard(log))}
 
               <TouchableOpacity
-                style={styles.viewAllButton}
+                style={styles.viewAllBtn}
                 onPress={loadFullHistory}
                 disabled={loadingHistory}
                 activeOpacity={0.7}
@@ -707,7 +816,7 @@ export const AccessControlScreen: React.FC = () => {
                 ) : (
                   <>
                     <Text style={styles.viewAllText}>Ver historial completo</Text>
-                    <Ionicons name="arrow-forward" size={16} color={COLORS.primary} />
+                    <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
                   </>
                 )}
               </TouchableOpacity>
@@ -719,88 +828,115 @@ export const AccessControlScreen: React.FC = () => {
   );
 };
 
+// ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
+
+  // ─ Header ─
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.glassBorder,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: SPACING.sm,
+  },
+  headerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.primaryGlow,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
+    letterSpacing: -0.3,
   },
   backBtn: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surfaceElevated,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  exportButton: {
+  exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: "#000d30e9",
-    borderColor: "#001a63e9",
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    borderColor: COLORS.glassBorder,
   },
-  exportButtonText: {
-    fontSize: 13,
+  exportBtnText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#FFF',
+    color: COLORS.textSecondary,
   },
+
+  // ─ Content ─
   content: {
-    paddingBottom: 32,
+    paddingBottom: 40,
   },
-  loadingCenter: {
+  centerContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 60,
+    gap: SPACING.sm,
+  },
+  listContent: {
+    paddingBottom: 40,
   },
 
-  // Voice section
+  // ─ Voice ─
   voiceSection: {
-    padding: 16,
-    paddingBottom: 8,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.md,
   },
   voiceButton: {
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: COLORS.primary + '25',
-    paddingVertical: 28,
+    borderRadius: RADIUS.xl,
+    borderWidth: 1.5,
+    borderColor: COLORS.glassBorder,
+    paddingVertical: 32,
     alignItems: 'center',
   },
   voiceButtonActive: {
-    borderColor: COLORS.danger + '60',
-    backgroundColor: COLORS.danger + '08',
+    borderColor: COLORS.danger + '50',
+    backgroundColor: COLORS.surfaceElevated,
   },
   voiceIdle: {
     alignItems: 'center',
   },
   micCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.primary + '15',
-    borderWidth: 2,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: COLORS.primaryGlow,
+    borderWidth: 1.5,
     borderColor: COLORS.primary + '30',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   voiceIdleText: {
     fontSize: 16,
@@ -810,35 +946,36 @@ const styles = StyleSheet.create({
   },
   voiceIdleHint: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   voiceRecording: {
     alignItems: 'center',
   },
   pulseRing: {
     position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: COLORS.danger + '10',
-    top: -18,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: COLORS.dangerGlow,
+    top: -22,
   },
   pulseRingInner: {
     position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.danger + '15',
-    top: -8,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: COLORS.danger + '12',
+    top: -11,
   },
   micCircleActive: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: COLORS.danger,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: SPACING.md,
+    ...SHADOWS.glow(COLORS.danger),
   },
   voiceRecordingText: {
     fontSize: 17,
@@ -848,185 +985,207 @@ const styles = StyleSheet.create({
   },
   voiceRecordingHint: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   voiceStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: COLORS.primary + '10',
-    borderRadius: 10,
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+    backgroundColor: COLORS.primaryGlow,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '18',
   },
   voiceStatusText: {
     fontSize: 13,
     color: COLORS.primary,
     flex: 1,
+    fontWeight: '500',
   },
   voiceUnavailable: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: COLORS.surfaceLight,
-    borderRadius: 12,
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
   },
   voiceUnavailableText: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     flex: 1,
   },
 
-  // Search
+  // ─ Search ─
   searchSection: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.sm,
   },
-  sectionTitle: {
-    fontSize: 14,
+  sectionLabel: {
+    fontSize: 12,
     fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: 8,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: SPACING.sm,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    gap: 8,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.sm,
   },
   searchInput: {
     flex: 1,
     height: 48,
     color: COLORS.text,
-    fontSize: 16,
+    fontSize: 15,
   },
 
-  // Results
+  // ─ Results ─
   resultsSection: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
   },
   resultCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   resultInfo: {
     flex: 1,
   },
   resultPlate: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: COLORS.text,
     marginBottom: 2,
+    letterSpacing: 0.3,
   },
   resultDetails: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
 
-  // Selected vehicle
+  // ─ Selected Vehicle ─
   selectedSection: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
   },
   selectedCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    padding: SPACING.lg,
   },
   selectedHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
+    gap: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   selectedType: {
     width: 44,
     height: 44,
-    borderRadius: 10,
+    borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  selectedTextInfo: {
+    flex: 1,
+  },
   selectedPlate: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
+    letterSpacing: 0.4,
   },
   selectedOwner: {
     fontSize: 14,
     color: COLORS.textSecondary,
   },
   selectedLocation: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 16,
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.lg,
   },
   accessButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: SPACING.md,
   },
-  accessButton: {
+  accessBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: SPACING.sm,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: RADIUS.lg,
   },
-  entryButton: {
+  entryBtn: {
     backgroundColor: COLORS.success,
+    ...SHADOWS.glow(COLORS.success),
   },
-  exitButton: {
+  exitBtn: {
     backgroundColor: COLORS.danger,
+    ...SHADOWS.glow(COLORS.danger),
   },
-  accessButtonText: {
-    fontSize: 16,
+  accessBtnText: {
+    fontSize: 15,
     fontWeight: '600',
     color: COLORS.text,
   },
 
-  // Recent activity
+  // ─ Recent Activity ─
   recentSection: {
-    paddingHorizontal: 16,
+    paddingHorizontal: SPACING.lg,
   },
   recentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
-
   emptyRecent: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingVertical: 48,
+    gap: SPACING.sm,
   },
   emptyText: {
-    color: COLORS.textSecondary,
-    marginTop: 8,
+    color: COLORS.textMuted,
+    fontSize: 14,
   },
   logCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-    gap: 12,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    gap: SPACING.md,
   },
   logIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 34,
+    height: 34,
+    borderRadius: RADIUS.sm,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1037,16 +1196,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
+    letterSpacing: 0.2,
   },
   logPlateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: SPACING.xs + 2,
   },
   logAction: {
     fontSize: 11,
     fontWeight: '700',
-    marginLeft: 4,
+    marginLeft: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   restrictedBadge: {
     flexDirection: 'row',
@@ -1055,35 +1217,36 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.danger,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 6,
+    borderRadius: RADIUS.sm,
+    marginLeft: 4,
   },
   restrictedBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#FFF',
+    color: COLORS.textInverse,
+    letterSpacing: 0.4,
   },
   logOwner: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginTop: 2,
   },
   logDetails: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginTop: 2,
   },
-  viewAllButton: {
+  viewAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: SPACING.sm,
     paddingVertical: 14,
-    marginTop: 4,
-    borderRadius: 12,
+    marginTop: SPACING.xs,
+    borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.primary + '30',
-    backgroundColor: COLORS.primary + '08',
+    borderColor: COLORS.primary + '25',
+    backgroundColor: COLORS.primaryGlow,
   },
   viewAllText: {
     fontSize: 14,
@@ -1091,26 +1254,29 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
 
-  // Filters
+  // ─ Filters ─
   filterBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm + 2,
+    gap: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: COLORS.glassBorder,
   },
   filterRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: SPACING.sm,
   },
   filterInput: {
+    flex: 1.2,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    gap: 6,
-    height: 38,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    paddingHorizontal: SPACING.sm,
+    gap: SPACING.xs,
+    height: 36,
   },
   filterInputText: {
     flex: 1,
@@ -1119,33 +1285,47 @@ const styles = StyleSheet.create({
   },
   filterDateBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    height: 36,
+  },
+  filterDateActive: {
+    borderColor: COLORS.primary + '40',
+    backgroundColor: COLORS.primaryGlow,
+  },
+  filterDateText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   clearFiltersBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary + '10',
+    gap: 4,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.primaryGlow,
   },
   clearFiltersText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: COLORS.primary,
   },
 
-  // Full history
+  // ─ Section Header ─
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm + 2,
     backgroundColor: COLORS.background,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   sectionHeaderText: {
     fontSize: 13,
@@ -1154,14 +1334,16 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   sectionBadge: {
-    backgroundColor: COLORS.surfaceLight,
-    paddingHorizontal: 8,
+    backgroundColor: COLORS.surfaceElevated,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: RADIUS.full,
+    minWidth: 28,
+    alignItems: 'center',
   },
   sectionBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
 });

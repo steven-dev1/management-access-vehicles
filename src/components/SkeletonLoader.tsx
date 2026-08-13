@@ -85,7 +85,7 @@ export const StatsCardSkeleton: React.FC = () => (
 
 const styles = StyleSheet.create({
   skeleton: {
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: COLORS.surfaceHighlight,
   },
   card: {
     backgroundColor: COLORS.surface,
