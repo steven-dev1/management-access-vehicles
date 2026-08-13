@@ -12,6 +12,10 @@ import { Vehicle, AccessLog } from '../../../types';
 import { formatRelativeTime, getVehicleTypeColor, parseTimestamp } from '../../../utils';
 import { useHaptics } from '../../../hooks/useHaptics';
 import { useRealtimeAccessLogs } from '../../../hooks/useRealtime';
+import * as XLSX from 'xlsx';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface LogSection {
   title: string;
@@ -77,13 +81,63 @@ export const AccessControlScreen: React.FC = () => {
 
   const exportAs = async (format: 'pdf' | 'excel' | 'csv') => {
     try {
-      if (format === 'csv') {
-        const csv = await accessLogRepository.exportLogsToCSV();
-        await Share.share({ message: csv, title: 'Historial de accesos' });
-      } else if (format === 'excel') {
-        await accessLogRepository.exportLogsToExcel();
+      const plate = filterPlate.toUpperCase().trim();
+      const startDate = filterDateFrom ? filterDateFrom.toISOString() : undefined;
+      const endDate = filterDateTo ? new Date(filterDateTo.getTime() + 86400000).toISOString() : undefined;
+
+      if (plate) {
+        const allFilteredLogs = historySections.flatMap(s => s.data);
+
+        if (format === 'csv') {
+          const header = 'Fecha,Hora,Placa,Tipo,Torre,Apartamento,Propietario,Tipo Accion\n';
+          const rows = allFilteredLogs.map((log: any) => {
+            const date = parseTimestamp(log.timestamp);
+            const v = log.vehicle;
+            return `${date.toLocaleDateString('es-ES')},${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })},${v?.license_plate || ''},${v?.vehicle_type === 'car' ? 'Carro' : 'Moto'},${v?.tower || ''},${v?.apartment_code || ''},${v?.owner_name || ''},${log.access_type === 'entry' ? 'Entrada' : 'Salida'}`;
+          }).join('\n');
+          await Share.share({ message: header + rows, title: 'Historial de accesos' });
+        } else if (format === 'excel') {
+          const rows = allFilteredLogs.map((log: any) => {
+            const date = parseTimestamp(log.timestamp);
+            const v = log.vehicle;
+            return {
+              'Fecha': date.toLocaleDateString('es-ES'),
+              'Hora': date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+              'Placa': v?.license_plate || '',
+              'Tipo': v?.vehicle_type === 'car' ? 'Carro' : 'Moto',
+              'Torre': v?.tower || '',
+              'Apartamento': v?.apartment_code || '',
+              'Propietario': v?.owner_name || '',
+              'Accion': log.access_type === 'entry' ? 'Entrada' : 'Salida',
+            };
+          });
+          const ws = XLSX.utils.json_to_sheet(rows);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Historial');
+          const excelBuffer = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+          const uri = `${FileSystem.cacheDirectory}historial_accesos.xlsx`;
+          await FileSystem.writeAsStringAsync(uri, excelBuffer, { encoding: FileSystem.EncodingType.Base64 });
+          await Sharing.shareAsync(uri, { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dialogTitle: 'Exportar historial' });
+        } else {
+          const rows = allFilteredLogs.map((log: any) => {
+            const date = parseTimestamp(log.timestamp);
+            const v = log.vehicle;
+            const isEntry = log.access_type === 'entry';
+            return `<tr><td>${date.toLocaleDateString('es-ES')}</td><td>${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</td><td><strong>${v?.license_plate || ''}</strong></td><td>${v?.vehicle_type === 'car' ? 'Carro' : 'Moto'}</td><td>Torre ${v?.tower || ''}</td><td>${v?.apartment_code || ''}</td><td>${v?.owner_name || ''}</td><td style="color:${isEntry ? '#10B981' : '#EF4444'};font-weight:bold;">${isEntry ? 'Entrada' : 'Salida'}</td></tr>`;
+          }).join('');
+          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#1a1a1a;color:white}tr:nth-child(even){background:#f5f5f5}</style></head><body><h2>Historial de Accesos</h2><table><thead><tr><th>Fecha</th><th>Hora</th><th>Placa</th><th>Tipo</th><th>Torre</th><th>Apto</th><th>Propietario</th><th>Accion</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+          const { uri } = await Print.printToFileAsync({ html });
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Exportar historial' });
+        }
       } else {
-        await accessLogRepository.exportLogsToPDF();
+        if (format === 'csv') {
+          const csv = await accessLogRepository.exportLogsToCSV(startDate, endDate);
+          await Share.share({ message: csv, title: 'Historial de accesos' });
+        } else if (format === 'excel') {
+          await accessLogRepository.exportLogsToExcel(startDate, endDate);
+        } else {
+          await accessLogRepository.exportLogsToPDF(startDate, endDate);
+        }
       }
     } catch (err) {
       Alert.alert('Error', 'No se pudo exportar el historial');
