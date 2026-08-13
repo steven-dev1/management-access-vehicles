@@ -341,8 +341,10 @@ export const AccessControlScreen: React.FC = () => {
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={(event: DateTimePickerEvent, date?: Date) => {
-                  setShowPickerFrom(Platform.OS === 'ios');
-                  if (date) setFilterDateFrom(date);
+                  if (event.type === 'dismissed' || Platform.OS !== 'ios') {
+                    setShowPickerFrom(false);
+                  }
+                  if (date && event.type !== 'dismissed') setFilterDateFrom(date);
                 }}
                 maximumDate={filterDateTo || new Date()}
                 themeVariant="dark"
@@ -354,8 +356,10 @@ export const AccessControlScreen: React.FC = () => {
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={(event: DateTimePickerEvent, date?: Date) => {
-                  setShowPickerTo(Platform.OS === 'ios');
-                  if (date) setFilterDateTo(date);
+                  if (event.type === 'dismissed' || Platform.OS !== 'ios') {
+                    setShowPickerTo(false);
+                  }
+                  if (date && event.type !== 'dismissed') setFilterDateTo(date);
                 }}
                 minimumDate={filterDateFrom || undefined}
                 maximumDate={new Date()}
