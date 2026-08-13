@@ -29,6 +29,10 @@ export const AccessControlScreen: React.FC = () => {
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [historySections, setHistorySections] = useState<LogSection[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [allHistoryLogs, setAllHistoryLogs] = useState<AccessLog[]>([]);
+  const [filterPlate, setFilterPlate] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const { listening, voiceText, startListening, updateVoiceText, isVoiceAvailable } = useVoiceCommand();
   const { impactMedium, notificationSuccess } = useHaptics();
   const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
@@ -87,24 +91,8 @@ export const AccessControlScreen: React.FC = () => {
     setLoadingHistory(true);
     try {
       const logs = await accessLogRepository.getRecentLogs(200);
-      const grouped = new Map<string, AccessLog[]>();
-
-      for (const log of logs) {
-        const date = parseTimestamp(log.timestamp);
-        const key = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        if (!grouped.has(key)) grouped.set(key, []);
-        grouped.get(key)!.push(log);
-      }
-
-      const sections: LogSection[] = [];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      for (const [dateStr, logs] of grouped) {
-        sections.push({ title: dateStr, data: logs });
-      }
-
-      setHistorySections(sections);
+      setAllHistoryLogs(logs);
+      applyHistoryFilters(logs);
       setShowFullHistory(true);
     } catch (err) {
       Alert.alert('Error', 'No se pudo cargar el historial');
@@ -112,6 +100,40 @@ export const AccessControlScreen: React.FC = () => {
       setLoadingHistory(false);
     }
   };
+
+  const applyHistoryFilters = (logs: AccessLog[]) => {
+    const plate = filterPlate.toUpperCase().trim();
+    const from = filterDateFrom ? new Date(filterDateFrom + 'T00:00:00') : null;
+    const to = filterDateTo ? new Date(filterDateTo + 'T23:59:59') : null;
+
+    const filtered = logs.filter(log => {
+      if (plate && !(log.vehicle?.license_plate || '').toUpperCase().includes(plate)) return false;
+      const logDate = parseTimestamp(log.timestamp);
+      if (from && logDate < from) return false;
+      if (to && logDate > to) return false;
+      return true;
+    });
+
+    const grouped = new Map<string, AccessLog[]>();
+    for (const log of filtered) {
+      const date = parseTimestamp(log.timestamp);
+      const key = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(log);
+    }
+
+    const sections: LogSection[] = [];
+    for (const [dateStr, logGroup] of grouped) {
+      sections.push({ title: dateStr, data: logGroup });
+    }
+    setHistorySections(sections);
+  };
+
+  useEffect(() => {
+    if (showFullHistory && allHistoryLogs.length > 0) {
+      applyHistoryFilters(allHistoryLogs);
+    }
+  }, [filterPlate, filterDateFrom, filterDateTo]);
 
   const handleVoiceCommand = async () => {
     try {
@@ -254,7 +276,68 @@ export const AccessControlScreen: React.FC = () => {
             <ActivityIndicator color={COLORS.primary} size="large" />
           </View>
         ) : (
-          <SectionList
+          <>
+            <View style={styles.filterBar}>
+              <View style={styles.filterRow}>
+                <View style={styles.filterInput}>
+                  <Ionicons name="search" size={16} color={COLORS.textSecondary} />
+                  <TextInput
+                    style={styles.filterInputText}
+                    placeholder="Placa"
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={filterPlate}
+                    onChangeText={setFilterPlate}
+                    autoCapitalize="characters"
+                  />
+                  {filterPlate.length > 0 && (
+                    <TouchableOpacity onPress={() => setFilterPlate('')}>
+                      <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+              <View style={styles.filterRow}>
+                <View style={[styles.filterInput, { flex: 1 }]}>
+                  <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
+                  <TextInput
+                    style={styles.filterInputText}
+                    placeholder="Desde (AAAA-MM-DD)"
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={filterDateFrom}
+                    onChangeText={setFilterDateFrom}
+                    maxLength={10}
+                  />
+                  {filterDateFrom.length > 0 && (
+                    <TouchableOpacity onPress={() => setFilterDateFrom('')}>
+                      <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={[styles.filterInput, { flex: 1 }]}>
+                  <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
+                  <TextInput
+                    style={styles.filterInputText}
+                    placeholder="Hasta (AAAA-MM-DD)"
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={filterDateTo}
+                    onChangeText={setFilterDateTo}
+                    maxLength={10}
+                  />
+                  {filterDateTo.length > 0 && (
+                    <TouchableOpacity onPress={() => setFilterDateTo('')}>
+                      <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+              {(filterPlate || filterDateFrom || filterDateTo) && (
+                <TouchableOpacity style={styles.clearFiltersBtn} onPress={() => { setFilterPlate(''); setFilterDateFrom(''); setFilterDateTo(''); }}>
+                  <Ionicons name="funnel" size={14} color={COLORS.primary} />
+                  <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <SectionList
             sections={historySections}
             keyExtractor={(item) => item.id}
             stickySectionHeadersEnabled={true}
@@ -306,7 +389,14 @@ export const AccessControlScreen: React.FC = () => {
             )}
             contentContainerStyle={{ paddingBottom: 32 }}
             renderSectionFooter={() => <View style={{ height: 16 }} />}
+            ListEmptyComponent={
+              <View style={styles.loadingCenter}>
+                <Ionicons name="search" size={32} color={COLORS.textSecondary} />
+                <Text style={styles.emptyText}>Sin resultados</Text>
+              </View>
+            }
           />
+          </>
         )}
       </SafeAreaView>
     );
@@ -914,6 +1004,47 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+
+  // Filters
+  filterBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    gap: 6,
+    height: 38,
+  },
+  filterInputText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.text,
+  },
+  clearFiltersBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary + '10',
+  },
+  clearFiltersText: {
+    fontSize: 12,
     fontWeight: '600',
     color: COLORS.primary,
   },
