@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, Share, SectionList } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, Share, SectionList, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { COLORS } from '../../../constants';
 import { accessLogRepository } from '../../../lib/repositories/accessLog.repository';
 import { useVoiceCommand, isExpoGoEnvironment } from '../../../hooks/useVoiceCommand';
@@ -31,8 +32,10 @@ export const AccessControlScreen: React.FC = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [allHistoryLogs, setAllHistoryLogs] = useState<AccessLog[]>([]);
   const [filterPlate, setFilterPlate] = useState('');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState<Date | null>(null);
+  const [filterDateTo, setFilterDateTo] = useState<Date | null>(null);
+  const [showPickerFrom, setShowPickerFrom] = useState(false);
+  const [showPickerTo, setShowPickerTo] = useState(false);
   const { listening, voiceText, startListening, updateVoiceText, isVoiceAvailable } = useVoiceCommand();
   const { impactMedium, notificationSuccess } = useHaptics();
   const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
@@ -92,7 +95,6 @@ export const AccessControlScreen: React.FC = () => {
     try {
       const logs = await accessLogRepository.getRecentLogs(200);
       setAllHistoryLogs(logs);
-      applyHistoryFilters(logs);
       setShowFullHistory(true);
     } catch (err) {
       Alert.alert('Error', 'No se pudo cargar el historial');
@@ -101,16 +103,18 @@ export const AccessControlScreen: React.FC = () => {
     }
   };
 
-  const applyHistoryFilters = (logs: AccessLog[]) => {
+  const applyHistoryFilters = useCallback(() => {
     const plate = filterPlate.toUpperCase().trim();
-    const from = filterDateFrom ? new Date(filterDateFrom + 'T00:00:00') : null;
-    const to = filterDateTo ? new Date(filterDateTo + 'T23:59:59') : null;
 
-    const filtered = logs.filter(log => {
+    const filtered = allHistoryLogs.filter(log => {
       if (plate && !(log.vehicle?.license_plate || '').toUpperCase().includes(plate)) return false;
       const logDate = parseTimestamp(log.timestamp);
-      if (from && logDate < from) return false;
-      if (to && logDate > to) return false;
+      if (filterDateFrom && logDate < filterDateFrom) return false;
+      if (filterDateTo) {
+        const endOfDay = new Date(filterDateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        if (logDate > endOfDay) return false;
+      }
       return true;
     });
 
@@ -127,13 +131,13 @@ export const AccessControlScreen: React.FC = () => {
       sections.push({ title: dateStr, data: logGroup });
     }
     setHistorySections(sections);
-  };
+  }, [allHistoryLogs, filterPlate, filterDateFrom, filterDateTo]);
 
   useEffect(() => {
-    if (showFullHistory && allHistoryLogs.length > 0) {
-      applyHistoryFilters(allHistoryLogs);
+    if (showFullHistory) {
+      applyHistoryFilters();
     }
-  }, [filterPlate, filterDateFrom, filterDateTo]);
+  }, [applyHistoryFilters, showFullHistory]);
 
   const handleVoiceCommand = async () => {
     try {
@@ -279,11 +283,11 @@ export const AccessControlScreen: React.FC = () => {
           <>
             <View style={styles.filterBar}>
               <View style={styles.filterRow}>
-                <View style={styles.filterInput}>
+                <View style={[styles.filterInput, { flex: 1 }]}>
                   <Ionicons name="search" size={16} color={COLORS.textSecondary} />
                   <TextInput
                     style={styles.filterInputText}
-                    placeholder="Placa"
+                    placeholder="Buscar por placa"
                     placeholderTextColor={COLORS.textSecondary}
                     value={filterPlate}
                     onChangeText={setFilterPlate}
@@ -297,46 +301,71 @@ export const AccessControlScreen: React.FC = () => {
                 </View>
               </View>
               <View style={styles.filterRow}>
-                <View style={[styles.filterInput, { flex: 1 }]}>
+                <TouchableOpacity
+                  style={[styles.filterInput, { flex: 1 }]}
+                  onPress={() => setShowPickerFrom(true)}
+                  activeOpacity={0.7}
+                >
                   <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
-                  <TextInput
-                    style={styles.filterInputText}
-                    placeholder="Desde (AAAA-MM-DD)"
-                    placeholderTextColor={COLORS.textSecondary}
-                    value={filterDateFrom}
-                    onChangeText={setFilterDateFrom}
-                    maxLength={10}
-                  />
-                  {filterDateFrom.length > 0 && (
-                    <TouchableOpacity onPress={() => setFilterDateFrom('')}>
+                  <Text style={[styles.filterInputText, !filterDateFrom && { color: COLORS.textSecondary }]}>
+                    {filterDateFrom ? filterDateFrom.toLocaleDateString('es-ES') : 'Desde'}
+                  </Text>
+                  {filterDateFrom && (
+                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); setFilterDateFrom(null); }}>
                       <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                   )}
-                </View>
-                <View style={[styles.filterInput, { flex: 1 }]}>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterInput, { flex: 1 }]}
+                  onPress={() => setShowPickerTo(true)}
+                  activeOpacity={0.7}
+                >
                   <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
-                  <TextInput
-                    style={styles.filterInputText}
-                    placeholder="Hasta (AAAA-MM-DD)"
-                    placeholderTextColor={COLORS.textSecondary}
-                    value={filterDateTo}
-                    onChangeText={setFilterDateTo}
-                    maxLength={10}
-                  />
-                  {filterDateTo.length > 0 && (
-                    <TouchableOpacity onPress={() => setFilterDateTo('')}>
+                  <Text style={[styles.filterInputText, !filterDateTo && { color: COLORS.textSecondary }]}>
+                    {filterDateTo ? filterDateTo.toLocaleDateString('es-ES') : 'Hasta'}
+                  </Text>
+                  {filterDateTo && (
+                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); setFilterDateTo(null); }}>
                       <Ionicons name="close-circle" size={16} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                   )}
-                </View>
+                </TouchableOpacity>
               </View>
               {(filterPlate || filterDateFrom || filterDateTo) && (
-                <TouchableOpacity style={styles.clearFiltersBtn} onPress={() => { setFilterPlate(''); setFilterDateFrom(''); setFilterDateTo(''); }}>
+                <TouchableOpacity style={styles.clearFiltersBtn} onPress={() => { setFilterPlate(''); setFilterDateFrom(null); setFilterDateTo(null); }}>
                   <Ionicons name="funnel" size={14} color={COLORS.primary} />
                   <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
                 </TouchableOpacity>
               )}
             </View>
+            {showPickerFrom && (
+              <DateTimePicker
+                value={filterDateFrom || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event: DateTimePickerEvent, date?: Date) => {
+                  setShowPickerFrom(Platform.OS === 'ios');
+                  if (date) setFilterDateFrom(date);
+                }}
+                maximumDate={filterDateTo || new Date()}
+                themeVariant="dark"
+              />
+            )}
+            {showPickerTo && (
+              <DateTimePicker
+                value={filterDateTo || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event: DateTimePickerEvent, date?: Date) => {
+                  setShowPickerTo(Platform.OS === 'ios');
+                  if (date) setFilterDateTo(date);
+                }}
+                minimumDate={filterDateFrom || undefined}
+                maximumDate={new Date()}
+                themeVariant="dark"
+              />
+            )}
             <SectionList
             sections={historySections}
             keyExtractor={(item) => item.id}
