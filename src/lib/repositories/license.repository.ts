@@ -61,6 +61,21 @@ class LicenseRepository {
     const deviceId = await this.getDeviceId();
     const name = deviceName || await this.getDeviceName();
 
+    const { data: existing } = await supabase
+      .from('license_devices')
+      .select('id')
+      .eq('license_id', licenseId)
+      .eq('device_id', deviceId)
+      .single();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('license_devices')
+        .update({ active: true, device_name: name })
+        .eq('id', existing.id);
+      return !error;
+    }
+
     const { error } = await supabase
       .from('license_devices')
       .insert({
